@@ -146,7 +146,7 @@ embedding = EmbeddingWSP(
 inputSize = options[:wordSize] + options[:shapeSize] + options[:posSize]
 
 # 1. Create an encoder
-encoder = BiGRU(inputSize, options[:hiddenSize])
+encoder = GRU(inputSize, options[:hiddenSize])
 
 """
     encode(X)
@@ -168,18 +168,16 @@ encode(Xb::Array{Array{Int,2},1}) = encode.(Xb)
 attention = Dense(2*options[:hiddenSize], 1)
 
 """
-    β(S, H)
+    β(s, H)
 
-    Align a decoder output `s` with hidden states of inputs `h` of size (hiddenSize x m). 
-    In the first run, the decoder output only a column vector `s` of length hiddenSize, it should be repeated to create 
-    the same number of columns as `h`, that is of size (hiddenSize x m). In subsequent runs, the decoder output should 
-    be a matrix of size (hiddenSize x m) and there is no need to repeat columns. We use a broadcast multiplication 
-    to combine the two cases into one.
+    Align a decoder state `s` with hidden states of inputs `h` of size (hiddenSize x m). 
+    The decoder state is a column vector `s` of length hiddenSize, it should be repeated to create 
+    the same number of columns as `h`, that is of size (hiddenSize x m).
 
     This function computes attention scores matrix of size (1 x maxSequenceLength) for a decoder position.
 """
-function β(S, H::Array{Float32,2})
-    V = S .* Float32.(ones(1, size(H,2)))
+function β(s, H::Array{Float32,2})
+    V = s .* Float32.(ones(1, size(H,2)))
     attention(vcat(H, V))
 end
 
@@ -207,7 +205,9 @@ linearLayer = Dense(options[:hiddenSize], numLabels)
     and Y0 is an one-hot vector representing a label at position t.
 """
 function decode(H::Array{Float32,2}, y0::Array{Int,1})
-    w = α(β(decoder.state, H))
+    # take the last state of the encoder as the current decoder state
+    s = encoder.state[:,end] 
+    w = α(β(s, H))
     c = sum(w .* H, dims=2)
     v = vcat(y0, c)
     linearLayer(decoder(v))
