@@ -199,23 +199,25 @@ decoder = GRU(options[:hiddenSize] + numLabels, options[:hiddenSize])
 linearLayer = Dense(options[:hiddenSize], numLabels)
 
 """
-    decode(H, Y0)
+    decode(H, y0)
 
     H is the hidden states of the encoder, which is a matrix of size (hiddenSize x maxSequenceLength)
-    and Y0 is an one-hot vector representing a label at position t.
+    and y0 is an one-hot vector representing a label at position t.
 """
 function decode(H::Array{Float32,2}, y0::Array{Int,1})
-    # take the last state of the encoder as the current decoder state
-    s = encoder.state[:,end] 
-    w = α(β(s, H))
+    w = α(β(decoder.state, H))
     c = sum(w .* H, dims=2)
     v = vcat(y0, c)
     linearLayer(decoder(v))
 end
 
 function decode(H::Array{Float32,2}, Y0::Array{Int,2})
+    # take the last state of the encoder as the init state for the decoder
+    decoder.init = encoder.state[:,end] 
+    # decode positions, one by one
     y0s = [Y0[:, t] for t=1:size(Y0,2)]
     ŷs = [decode(H, y0) for y0 in y0s]
+    # stack the output array into a 2-d matrix of size (hiddenSize x maxSequenceLength)
     hcat(ŷs...)
 end
 

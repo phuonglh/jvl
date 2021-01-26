@@ -62,9 +62,10 @@ function batch(sentences::Array{Sentence}, wordIndex::Dict{String,Int}, shapeInd
     numLabels = length(labelIndex)
     paddingY = Flux.onehot(labelIndex[options[:paddingY]], 1:numLabels)
     for sentence in sentences
-        xs = map(token -> [get(wordIndex, lowercase(token.word), 1), get(shapeIndex, shape(token.word), 1), get(posIndex, token.annotation[:upos], 1)], sentence.tokens)
+        tokens = sentence.tokens[2:end] # not consider the ROOT token of UD graphs
+        xs = map(token -> [get(wordIndex, lowercase(token.word), 1), get(shapeIndex, shape(token.word), 1), get(posIndex, token.annotation[:upos], 1)], tokens)
         push!(xs, paddingX)
-        ys = map(token -> Flux.onehot(labelIndex[token.annotation[:pos]], 1:numLabels, 1), sentence.tokens)
+        ys = map(token -> Flux.onehot(labelIndex[token.annotation[:pos]], 1:numLabels, 1), tokens)
         ys0 = copy(ys); prepend!(ys0, [Flux.onehot(labelIndex["BOS"], 1:length(labelIndex), 1)])
         ys1 = copy(ys); append!(ys1, [Flux.onehot(labelIndex["EOS"], 1:length(labelIndex), 1)])
         # crop the columns of xs and ys to maxSequenceLength
@@ -199,23 +200,25 @@ decoder = GRU(options[:hiddenSize] + numLabels, options[:hiddenSize])
 linearLayer = Dense(options[:hiddenSize], numLabels)
 
 """
-    decode(H, Y0)
+    decode(H, y0)
 
     H is the hidden states of the encoder, which is a matrix of size (hiddenSize x maxSequenceLength)
-    and Y0 is an one-hot vector representing a label at position t.
+    and y0 is an one-hot vector representing a label at position t.
 """
 function decode(H::Array{Float32,2}, y0::Array{Int,1})
-    # take the last state of the encoder as the current decoder state
-    s = encoder.state[:,end] 
-    w = α(β(s, H))
+    w = α(β(decoder.state, H))
     c = sum(w .* H, dims=2)
     v = vcat(y0, c)
     linearLayer(decoder(v))
 end
 
 function decode(H::Array{Float32,2}, Y0::Array{Int,2})
+    # take the last state of the encoder as the init state for the decoder
+    decoder.init = encoder.state[:,end] 
+    # decode positions, one by one
     y0s = [Y0[:, t] for t=1:size(Y0,2)]
     ŷs = [decode(H, y0) for y0 in y0s]
+    # stack the output array into a 2-d matrix of size (hiddenSize x maxSequenceLength)
     hcat(ŷs...)
 end
 
@@ -265,8 +268,9 @@ function train(options::Dict{Symbol,Any})
         ℓ = loss(Xbs[1], Y0bs[1], Ybs[1]) 
         @info string("\tloss = ", ℓ)
         gs = gradient(() -> loss(Xbs[1], Y0bs[1], Ybs[1]), params(machine))
+        eg = sum(gs[encoder.cell.Wh])
         dg = sum(gs[decoder.cell.Wh])
-        @info "\tsum of decoder gradient = $(dg)"
+        @info "\tsum(encoder gradient) = $(eg), sum(decoder gradient) = $(dg)"
         # trainingAccuracy = evaluate(model, Xbs, Y0bs, Ybs)
         # validationAccuracy = evaluate(model, Ubs, Vbs, Wbs)
         # @info string("\tloss = ", ℓ, ", training accuracy = ", trainingAccuracy, ", validation accuracy = ", validationAccuracy)

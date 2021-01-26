@@ -1,0 +1,9 @@
+O 9
+B-MISC 3
+B-LOC 4
+[PAD_Y] 1
+I-ORG 5
+I-MISC 6
+I-LOC 7
+I-PER 8
+B-ORG 2

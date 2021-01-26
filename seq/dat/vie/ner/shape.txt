@@ -1,0 +1,12 @@
+number 1
+date1 2
+date3 3
+name 4
+allcap 5
+bracket 6
+date2 7
+numberSeq 8
+phrase 9
+capital 10
+other 11
+punct 12

@@ -1,0 +1,11 @@
+number 1
+date1 2
+date3 3
+name 4
+allcap 5
+numberSeq 6
+phrase 7
+url 8
+capital 9
+other 10
+punct 11
