@@ -62,6 +62,38 @@ optionsEWT = Dict{Symbol,Any}(
     :testOutput => string(pwd(), "/seq/dat/eng/pos/test.out")
 )
 
+# For Bahasa Indonesia PoS tagging
+optionsGSD = Dict{Symbol,Any}(
+    :mode => :train,
+    :minFreq => 1,
+    :lowercase => true,
+    :vocabSize => 2^16,
+    :wordSize => 50,
+    :shapeSize => 4,
+    :posSize => 16,
+    :hiddenSize => 32,
+    :maxSequenceLength => 40,
+    :batchSize => 32,
+    :numEpochs => 20,
+    :trainCorpus => string(pwd(), "/dat/dep/ind/id_gsd-ud-train.conllu"),
+    :validCorpus => string(pwd(), "/dat/dep/ind/id_gsd-ud-dev.conllu"),
+    :testCorpus => string(pwd(), "/dat/dep/ind/id_gsd-ud-test.conllu"),
+    :modelPath => string(pwd(), "/seq/dat/ind/pos/network.bson"),
+    :wordPath => string(pwd(), "/seq/dat/ind/pos/word.txt"),
+    :shapePath => string(pwd(), "/seq/dat/ind/pos/shape.txt"),
+    :posPath => string(pwd(), "/seq/dat/ind/pos/partOfSpeech.txt"),
+    :labelPath => string(pwd(), "/seq/dat/ind/pos/label.txt"),
+    :numCores => 4,
+    :verbose => false,
+    :logPath => string(pwd(), "/seq/dat/ind/pos/loss.txt"),
+    :unknown => "[UNK]",
+    :paddingX => "[PAD_X]",
+    :paddingY => "[PAD_Y]",
+    :trainOutput => string(pwd(), "/seq/dat/ind/pos/train.out"),
+    :validOutput => string(pwd(), "/seq/dat/ind/pos/test.out"),
+    :testOutput => string(pwd(), "/seq/dat/ind/pos/test.out")
+)
+
 # For Vietnamese NER
 optionsVLSP2016 = Dict{Symbol,Any}(
     :mode => :train,

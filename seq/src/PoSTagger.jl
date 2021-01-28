@@ -62,7 +62,7 @@ function batch(sentences::Array{Sentence}, wordIndex::Dict{String,Int}, shapeInd
     paddingY = Flux.onehot(labelIndex[options[:paddingY]], 1:length(labelIndex))
     for sentence in sentences
         xs = map(token -> [get(wordIndex, lowercase(token.word), 1), get(shapeIndex, shape(token.word), 1), get(posIndex, token.annotation[:upos], 1)], sentence.tokens)
-        ys = map(token -> Flux.onehot(labelIndex[token.annotation[:pos]], 1:length(labelIndex), 1), sentence.tokens)
+        ys = map(token -> Flux.onehot(get(labelIndex, token.annotation[:pos], 1), 1:length(labelIndex), 1), sentence.tokens)
         # pad the columns of xs and ys to maxSequenceLength
         if length(xs) > options[:maxSequenceLength]
             xs = xs[1:options[:maxSequenceLength]]
@@ -106,8 +106,11 @@ end
 function train(options::Dict{Symbol,Any})
     sentences = readCorpusUD(options[:trainCorpus])
     sentencesValidation = readCorpusUD(options[:validCorpus])
+    sentencesTest = readCorpusUD(options[:testCorpus])
     @info "Number of training sentences = $(length(sentences))"
     @info "Number of validation sentences = $(length(sentencesValidation))"
+    @info "Number of test sentences = $(length(sentencesTest))"
+
     vocabularies = vocab(sentences)
     
     prepend!(vocabularies.words, [options[:unknown]])
@@ -167,8 +170,8 @@ function train(options::Dict{Symbol,Any})
     write(file, "loss,trainingAccuracy,validationAccuracy\n")
     evalcb = Flux.throttle(30) do
         ℓ = loss(dataset[1]...)
-        trainingAccuracy = evaluate(encoder, Xs, Ys)
-        validationAccuracy = evaluate(encoder, Us, Vs)
+        trainingAccuracy = evaluate(encoder, Xs, Ys, options)
+        validationAccuracy = evaluate(encoder, Us, Vs, options)
         @info string("loss = ", ℓ, ", training accuracy = ", trainingAccuracy, ", validation accuracy = ", validationAccuracy)
         write(file, string(ℓ, ',', trainingAccuracy, ',', validationAccuracy, "\n"))
     end
@@ -180,20 +183,26 @@ function train(options::Dict{Symbol,Any})
 
     @info "Total weight of final word embeddings = $(sum(encoder[1].word.W))"
     @info "Evaluating the model on the training set..."
-    accuracy = evaluate(encoder, Xs, Ys)
+    accuracy = evaluate(encoder, Xs, Ys, options)
     @info "Training accuracy = $accuracy"
-    accuracyValidation = evaluate(encoder, Us, Vs)
-    @info "Validation accuracy = $accuracyValidation"
+
+    accuracy = evaluate(encoder, Us, Vs, options)
+    @info "Validation accuracy = $accuracy"
+
+    Us, Vs = batch(sentencesTest, wordIndex, shapeIndex, posIndex, labelIndex)
+    accuracy = evaluate(encoder, Us, Vs, options)
+    @info "Test accuracy = $accuracy"
+
     encoder
 end
 
 """
-    evaluate(encoder, Xs, Ys, paddingY)
+    evaluate(encoder, Xs, Ys, options, paddingY)
 
     Evaluate the accuracy of the encoder on a dataset. `Xs` is a list of 3-d input matrices and `Ys` is a list of 
     3-d ground-truth output matrices. The third dimension is the batch one.
 """
-function evaluate(encoder, Xs, Ys, paddingY::Int=1)
+function evaluate(encoder, Xs, Ys, options, paddingY::Int=1)
     numBatches = length(Xs)
     # normally, size(X,3) is the batch size except the last batch
     @floop ThreadedEx(basesize=numBatches÷options[:numCores]) for i=1:numBatches
@@ -216,4 +225,19 @@ function evaluate(encoder, Xs, Ys, paddingY::Int=1)
     end
     @info "Total matched tokens = $(numMatches)/$(numTokens)"
     return numMatches/numTokens
+end
+
+"""
+    loadIndex(path)
+
+    Load an index from a file which is previously saved by `saveIndex()` function.
+"""
+function loadIndex(path)::Dict{String,Int}
+    lines = readlines(path)
+    pairs = Array{Tuple{String,Int},1}()
+    for line in lines
+        parts = split(line, " ")
+        push!(pairs, (string(parts[1]), parse(Int, parts[2])))
+    end
+    return Dict(pair[1] => pair[2] for pair in pairs)
 end
