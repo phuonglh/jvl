@@ -172,8 +172,8 @@ function train(options::Dict{Symbol,Any})
     write(file, "loss,trainingAccuracy,validationAccuracy\n")
     evalcb = Flux.throttle(30) do
         ℓ = loss(dataset[1]...)
-        trainingAccuracy = evaluate(encoder, Xs, Ys)
-        validationAccuracy = evaluate(encoder, Us, Vs)
+        trainingAccuracy = evaluate(encoder, Xs, Ys, options)
+        validationAccuracy = evaluate(encoder, Us, Vs, options)
         @info string("loss = ", ℓ, ", training accuracy = ", trainingAccuracy, ", validation accuracy = ", validationAccuracy)
         write(file, string(ℓ, ',', trainingAccuracy, ',', validationAccuracy, "\n"))
     end
@@ -185,20 +185,20 @@ function train(options::Dict{Symbol,Any})
 
     @info "Total weight of final word embeddings = $(sum(encoder[1].word.W))"
     @info "Evaluating the model on the training set..."
-    accuracy = evaluate(encoder, Xs, Ys)
+    accuracy = evaluate(encoder, Xs, Ys, options)
     @info "Training accuracy = $accuracy"
-    accuracyValidation = evaluate(encoder, Us, Vs)
+    accuracyValidation = evaluate(encoder, Us, Vs, options)
     @info "Validation accuracy = $accuracyValidation"
     encoder
 end
 
 """
-    evaluate(encoder, Xs, Ys, paddingY)
+    evaluate(encoder, Xs, Ys, options, paddingY)
 
     Evaluate the accuracy of the encoder on a dataset. `Xs` is a list of 3-d input matrices and `Ys` is a list of 
     3-d ground-truth output matrices. The third dimension is the batch one.
 """
-function evaluate(encoder, Xs, Ys, paddingY::Int=1)
+function evaluate(encoder, Xs, Ys, options, paddingY::Int=1)
     numBatches = length(Xs)
     # normally, size(X,3) is the batch size except the last batch
     @floop ThreadedEx(basesize=numBatches÷options[:numCores]) for i=1:numBatches
