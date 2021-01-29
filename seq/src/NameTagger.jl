@@ -224,12 +224,12 @@ function evaluate(encoder, Xs, Ys, options, paddingY::Int=1)
 end
 
 """
-    predict(encoder, Xs, Ys, labelIndex, outputPath, paddingY)
+    predict(encoder, Xs, Ys, labelIndex, outputPath, options, paddingY)
 
     Predict the labels for some inputs. `Xs` is a list of 3-d input matrices. We use the addition ground-truth 
     `Ys` for evaluation using the `conlleval` script.
 """
-function predict(encoder, Xs, Ys, labelIndex::Dict{String,Int}, outputPath::String, paddingY::Int=1)
+function predict(encoder, Xs, Ys, labelIndex::Dict{String,Int}, outputPath::String, options, paddingY::Int=1)
     numBatches = length(Xs)
     # normally, size(X,3) is the batch size except the last batch
     @floop ThreadedEx(basesize=numBatches÷options[:numCores]) for i=1:numBatches
@@ -299,10 +299,10 @@ function eval(options)
     XsT, YsT = batch(sentencesTest, wordIndex, shapeIndex, posIndex, labelIndex)
     datasetTest = collect(zip(XsT, YsT))
     @info "Predicting training set..."
-    predict(encoder, Xs, Ys, labelIndex, options[:trainOutput])
+    predict(encoder, Xs, Ys, labelIndex, options[:trainOutput], options)
     @info "Predicting validation set..."
-    predict(encoder, XsV, YsV, labelIndex, options[:validOutput])
+    predict(encoder, XsV, YsV, labelIndex, options[:validOutput], options)
     @info "Predicting test set..."
-    predict(encoder, XsT, YsT, labelIndex, options[:testOutput])
+    predict(encoder, XsT, YsT, labelIndex, options[:testOutput], options)
 end
 
