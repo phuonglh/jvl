@@ -41,14 +41,20 @@ function readCorpusUD(path::String, maxSentenceLength::Int=40)::Array{Sentence}
 end
 
 """
-    readCorpus(path, maxSentenceLength=40)
+    readCorpus(path, threeColumns::Bool=false, maxSentenceLength=40)
 
-    Read a CoNLL-2003 file to build named-entity tagged sentences.
+    Read a CoNLL-2003 file to build named-entity tagged sentences. The Bahasa Indonesia 
+    corpus has 3 columns: word, part-of-speech, and NE tag; if reading this corpus, we 
+    need to set the last argument to true.
 """
-function readCorpusCoNLL(path::String, maxSentenceLength::Int=40)::Array{Sentence}
+function readCorpusCoNLL(path::String, threeColumns::Bool=false, maxSentenceLength::Int=40)::Array{Sentence}
     function createToken(line::String)::Token
         parts = string.(split(line, r"[\s]+"))
-        annotation = Dict(:p => parts[2], :c => parts[3], :e => parts[4], :s => shape(parts[1]))
+        annotation = if threeColumns 
+            Dict(:p => parts[2], :c => "_", :e => parts[3], :s => shape(parts[1]))
+        else
+            Dict(:p => parts[2], :c => parts[3], :e => parts[4], :s => shape(parts[1]))
+        end
         Token(parts[1], annotation)
     end
 

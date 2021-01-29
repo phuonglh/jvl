@@ -109,8 +109,8 @@ end
     Train an encoder.
 """
 function train(options::Dict{Symbol,Any})
-    sentences = readCorpusCoNLL(options[:trainCorpus])
-    sentencesValidation = readCorpusCoNLL(options[:validCorpus])
+    sentences = readCorpusCoNLL(options[:trainCorpus], options[:threeColumns])
+    sentencesValidation = readCorpusCoNLL(options[:validCorpus], options[:threeColumns])
     @info "Number of training sentences = $(length(sentences))"
     @info "Number of validation sentences = $(length(sentencesValidation))"
     vocabularies = vocab(sentences)
@@ -170,7 +170,7 @@ function train(options::Dict{Symbol,Any})
     optimizer = ADAM()
     file = open(options[:logPath], "w")
     write(file, "loss,trainingAccuracy,validationAccuracy\n")
-    evalcb = Flux.throttle(30) do
+    evalcb = Flux.throttle(60) do
         ℓ = loss(dataset[1]...)
         trainingAccuracy = evaluate(encoder, Xs, Ys, options)
         validationAccuracy = evaluate(encoder, Us, Vs, options)
@@ -281,9 +281,9 @@ end
     Run the prediction on all train/dev./test corpus and save the results to corresponding output files.
 """
 function eval(options)
-    sentences = readCorpusCoNLL(options[:trainCorpus])
-    sentencesValidation = readCorpusCoNLL(options[:validCorpus])
-    sentencesTest = readCorpusCoNLL(options[:testCorpus])
+    sentences = readCorpusCoNLL(options[:trainCorpus], options[:threeColumns])
+    sentencesValidation = readCorpusCoNLL(options[:validCorpus], options[:threeColumns])
+    sentencesTest = readCorpusCoNLL(options[:testCorpus], options[:threeColumns])
     @info "Number of training sentences = $(length(sentences))"
     @info "Number of validation sentences = $(length(sentencesValidation))"
     @info "Number of test sentences = $(length(sentencesTest))"

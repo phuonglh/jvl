@@ -20,7 +20,7 @@ Training data sets come universal dependency treebanks with available training/d
 - The English Web Treebank (EWT) is used to train an English part-of-speech tagger (`optionsEWT`).
 - The Bahasa Indonesia Universal Dependency treebank (GSD) is used to train a Bahasa Indonesian part-of-speech tagger (`optionsGSD`).
 
-## Training
+## Experiment
 
 The resulting files will be saved to subdirectories of `seq/dat/(lang)/pos` where `lang` can be `eng`, `vie` or `ind`, etc. These directories should exist before training.
 
@@ -52,7 +52,7 @@ Training data sets come from different sources:
 - The VLSP 2016 corpus for training Vietnamese named entity tagger (`optionsVLSP2016`).
 - The CoNLL 2003 corpus for training English named entity tagger (`optionsCoNLL2003`).
 
-## Training
+## Experiment
 
 The resulting files will be saved to subdirectories of `seq/dat/(lang)/ner` where `lang` can be `eng`, `vie` or `ind`, etc. These directories should exist before training.
 
@@ -67,8 +67,8 @@ To train a tagger, run the file `seq/NameTagger.jl`. Update the options if neces
 
 | wordSize |  hiddenUnits | trainingF1 | devF1 | testF1 | trainingTime
 | ---:       | :---:   | :---:    | :---:    | :---:    | :---:    |
-| 25 | 32 | ? | ? | ? | MBP |
-| 50 | 32 | ? | ? | ? | MBP |
+| 25 | 32 | 0.6828 | 0.4915 | 0.4915 | MBP |
+| 50 | 32 | ? | ? | ? | ? |
 
 ## English CoNLL-2003 Accuracy
 
@@ -79,8 +79,22 @@ To train a tagger, run the file `seq/NameTagger.jl`. Update the options if neces
 
 | wordSize |  hiddenUnits | trainingF1 | devF1 | testF1 | trainingTime
 | ---:       | :---:   | :---:    | :---:    | :---:    | :---:    | 
-| 100 | 64 | 0.8338 | 0.6290 | 0.5210 | 36,909 (s) Jupiter | 
-| 100 | 128 |  |  |  | ? (s) Jupiter | 
+| 50 |  128 | ? | ? | ? | ? (s) Jupiter | 
+| 100 |  64 | 0.8338 | 0.6290 | 0.5210 | 36,909 (s) Jupiter | 
+| 100 | 128 | 0.8460 | 0.6227 | 0.5051 | 37,604 (s) Jupiter | 
+
+## Bahasa Indonesia-2020 Accuracy
+
+- Number of training sentences: 1,463 (with length not greater than 40)
+- Number of development sentences: 366
+- Number of test sentences: 508
+- Options: 20 epochs, batch size = 32, shape embedding size = 4, part-of-speech embedding size = 25
+
+| wordSize |  hiddenUnits | trainingF1 | devF1 | testF1 | trainingTime
+| ---:       | :---:   | :---:    | :---:    | :---:    | :---:    | 
+|  25 | 64 | 0.7191 | 0.5720 | 0.5619 | 1,038 (s) MBP | 
+|  50 | 64 | 0.7637 | 0.5282 | 0.6009 | 1,869 (s) MBP | 
+| 100 | 64 | 0.7741 | 0.5662 | 0.5262 | 3,752 (s) MBP | 
 
 # Dependency Parsing
 

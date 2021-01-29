@@ -1,6 +1,5 @@
 # For Vietnamese PoS tagging
 optionsVUD = Dict{Symbol,Any}(
-    :mode => :train,
     :minFreq => 2,
     :lowercase => true,
     :vocabSize => 2^16,
@@ -32,7 +31,6 @@ optionsVUD = Dict{Symbol,Any}(
 
 # For English PoS tagging
 optionsEWT = Dict{Symbol,Any}(
-    :mode => :train,
     :minFreq => 2,
     :lowercase => true,
     :vocabSize => 2^16,
@@ -64,7 +62,6 @@ optionsEWT = Dict{Symbol,Any}(
 
 # For Bahasa Indonesia PoS tagging
 optionsGSD = Dict{Symbol,Any}(
-    :mode => :train,
     :minFreq => 1,
     :lowercase => true,
     :vocabSize => 2^16,
@@ -96,7 +93,6 @@ optionsGSD = Dict{Symbol,Any}(
 
 # For Vietnamese NER
 optionsVLSP2016 = Dict{Symbol,Any}(
-    :mode => :train,
     :minFreq => 2,
     :lowercase => true,
     :vocabSize => 2^16,
@@ -123,12 +119,12 @@ optionsVLSP2016 = Dict{Symbol,Any}(
     :paddingY => "[PAD_Y]",
     :trainOutput => string(pwd(), "/seq/dat/vie/ner/train.out"),
     :validOutput => string(pwd(), "/seq/dat/vie/ner/test.out"),
-    :testOutput => string(pwd(), "/seq/dat/vie/ner/test.out")
+    :testOutput => string(pwd(), "/seq/dat/vie/ner/test.out"),
+    :threeColumns => false
 )
 
 # For English CoNLL-2003 NER
 optionsCoNLL2003 = Dict{Symbol,Any}(
-    :mode => :train,
     :minFreq => 2,
     :lowercase => true,
     :vocabSize => 2^16,
@@ -155,5 +151,38 @@ optionsCoNLL2003 = Dict{Symbol,Any}(
     :paddingY => "[PAD_Y]",
     :trainOutput => string(pwd(), "/seq/dat/eng/ner/train.out"),
     :validOutput => string(pwd(), "/seq/dat/eng/ner/testa.out"),
-    :testOutput => string(pwd(), "/seq/dat/eng/ner/testb.out") 
+    :testOutput => string(pwd(), "/seq/dat/eng/ner/testb.out"),
+    :threeColumns => false
+)
+
+# For Bahasa Indonesia NER (2020)
+optionsKIK2020 = Dict{Symbol,Any}(
+    :minFreq => 2,
+    :lowercase => true,
+    :vocabSize => 2^16,
+    :wordSize => 100,
+    :shapeSize => 4,
+    :posSize => 25,
+    :hiddenSize => 64,
+    :maxSequenceLength => 40,
+    :batchSize => 32,
+    :numEpochs => 20,
+    :trainCorpus => string(pwd(), "/dat/ner/ind/train.txt"),
+    :validCorpus => string(pwd(), "/dat/ner/ind/dev.txt"),
+    :testCorpus => string(pwd(), "/dat/ner/ind/test.txt"),
+    :modelPath => string(pwd(), "/seq/dat/ind/ner/network.bson"),
+    :wordPath => string(pwd(), "/seq/dat/ind/ner/word.txt"),
+    :shapePath => string(pwd(), "/seq/dat/ind/ner/shape.txt"),
+    :posPath => string(pwd(), "/seq/dat/ind/ner/partOfSpeech.txt"),
+    :labelPath => string(pwd(), "/seq/dat/ind/ner/label.txt"),
+    :numCores => 4,
+    :verbose => false,
+    :logPath => string(pwd(), "/seq/dat/ind/ner/loss.txt"),
+    :unknown => "[UNK]",
+    :paddingX => "[PAD_X]",
+    :paddingY => "[PAD_Y]",
+    :trainOutput => string(pwd(), "/seq/dat/ind/ner/train.out"),
+    :validOutput => string(pwd(), "/seq/dat/ind/ner/dev.out"),
+    :testOutput => string(pwd(), "/seq/dat/ind/ner/test.out"),
+    :threeColumns => true
 )
