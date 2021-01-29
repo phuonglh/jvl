@@ -33,11 +33,14 @@ To train a tagger, run the file `seq/PoSTagger.jl`. Update the options if necess
 - Number of test sentences: 511
 - Options: 20 epochs, batch size = 32, shape embedding size = 4, universal part-of-speech embedding size = 16
 
-| wordSize |  hiddenUnits | trainingAcc | devAcc | testAcc |
-| ---:       | :---:   | :---:    | :---:    | :---:    |
-| 25 | 32 | 0.9932 | 0.9227 | 0.9220 |
-| 50 | 32 | 0.9995 | 0.9289 | 0.9280 |
-| 80 | 32 | | |
+| wordSize |  hiddenUnits | trainingAcc | devAcc | testAcc | trainingTime
+| ---:       | :---:   | :---:    | :---:    | :---:    | :---:    |
+| 25 | 32 | 0.9932 | 0.9227 | 0.9220 |  |
+| 50 | 32 | 0.9995 | 0.9289 | 0.9280 | |
+| 80 | 32 | 0.9970 | 0.9338 | 0.9322 | 5,790 (s) FPT |
+| 100 | 32 | 0.9980 | 0.9302 | 0.9276 | 7,563 (s) FPT |
+| 25 | 64 | 0.9972 | 0.8854 | 0.8778 |  2,350 (s) FPT|
+| 50 | 64 | 
 
 
 # Named Entity Recognition
@@ -71,13 +74,13 @@ To train a tagger, run the file `seq/NameTagger.jl`. Update the options if neces
 
 - Number of training sentences: 14,987 (with length not greater than 40)
 - Number of development sentences: 3,466
-- Number of test sentences: ? 
+- Number of test sentences: 3,684
 - Options: 20 epochs, batch size = 32, shape embedding size = 4, part-of-speech embedding size = 25
 
 | wordSize |  hiddenUnits | trainingF1 | devF1 | testF1 | trainingTime
 | ---:       | :---:   | :---:    | :---:    | :---:    | :---:    | 
-| 100 | 64 | ? | ? | ? | Jupiter |
-
+| 100 | 64 | 0.8338 | 0.6290 | 0.5210 | 36,909 (s) Jupiter | 
+| 100 | 128 |  |  |  | ? (s) Jupiter | 
 
 # Dependency Parsing
 
