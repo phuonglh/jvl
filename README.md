@@ -49,6 +49,34 @@ Training data sets come from different sources:
 - The VLSP 2016 corpus for training Vietnamese named entity tagger (`optionsVLSP2016`).
 - The CoNLL 2003 corpus for training English named entity tagger (`optionsCoNLL2003`).
 
+## Training
+
+The resulting files will be saved to subdirectories of `seq/dat/(lang)/ner` where `lang` can be `eng`, `vie` or `ind`, etc. These directories should exist before training.
+
+To train a tagger, run the file `seq/NameTagger.jl`. Update the options if necessary. Then run the function `train(options)`, where `options` is the selected options for a language as described above. After training, run the function `eval(options)` to predict all train/dev./test corpus and save the results to corresponding output files. Finally, run the `conlleval` script on each output file to see the corresponding NER performance.
+
+## Vietnamese VLSP-2016 Accuracy
+
+- Number of training sentences: 16,858 (with length not greater than 40)
+- Number of development sentences: 2,831
+- Number of test sentences: 2,831 (same as the dev. set)
+- Options: 20 epochs, batch size = 32, shape embedding size = 4, part-of-speech embedding size = 16
+
+| wordSize |  hiddenUnits | trainingF1 | devF1 | testF1 | trainingTime
+| ---:       | :---:   | :---:    | :---:    | :---:    | :---:    |
+| 25 | 32 | ? | ? | ? | MBP |
+| 50 | 32 | ? | ? | ? | MBP |
+
+## English CoNLL-2003 Accuracy
+
+- Number of training sentences: 14,987 (with length not greater than 40)
+- Number of development sentences: 3,466
+- Number of test sentences: ? 
+- Options: 20 epochs, batch size = 32, shape embedding size = 4, part-of-speech embedding size = 25
+
+| wordSize |  hiddenUnits | trainingF1 | devF1 | testF1 | trainingTime
+| ---:       | :---:   | :---:    | :---:    | :---:    | :---:    | 
+| 100 | 64 | ? | ? | ? | Jupiter |
 
 
 # Dependency Parsing
