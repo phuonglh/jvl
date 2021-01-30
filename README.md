@@ -14,7 +14,7 @@ All machine learning models are based on neural networks, either multi-layer per
 
 An implementation of GRU models for part-of-speech tagging is provided in `seq/PoSTagger.jl`. The general pipeline is `EmbeddingWSP -> GRU -> Dense` where both words, word shapes and universal parts-of-speech tokens are embedded and concatenated before feeding to a GRU layer. Embedding dimensions are specified in `seq/Options.jl`. Each option is simply a dictionary with key and value pairs.
 
-Training data sets come universal dependency treebanks with available training/dev./test split. Specifically
+Data sets are universal dependency treebanks with available training/dev./test split. Specifically
 
 - The Vietnamese Universal Dependency (VUD) treebank is used to train a Vietnamese part-of-speech tagger (`optionsVUD`). 
 - The English Web Treebank (EWT) is used to train an English part-of-speech tagger (`optionsEWT`).
@@ -79,7 +79,8 @@ To train a tagger, run the file `seq/NameTagger.jl`. Update the options if neces
 
 | wordSize |  hiddenUnits | trainingF1 | devF1 | testF1 | trainingTime
 | ---:       | :---:   | :---:    | :---:    | :---:    | :---:    | 
-| 50 |  128 | ? | ? | ? | ? (s) Jupiter | 
+| 50 |  64 | ? | ? | ? | ? (s) Jupiter | 
+| 50 |  128 | 0.8475 | 0.6711 | 0.5832 | 18,622 (s) Jupiter | 
 | 100 |  64 | 0.8338 | 0.6290 | 0.5210 | 36,909 (s) Jupiter | 
 | 100 | 128 | 0.8460 | 0.6227 | 0.5051 | 37,604 (s) Jupiter | 
 
@@ -98,3 +99,32 @@ To train a tagger, run the file `seq/NameTagger.jl`. Update the options if neces
 
 # Dependency Parsing
 
+An implementation of arc-eager dependency parsing algorithm is provided in module `tdp`. The transition classifier use a 
+MLP with the following pipeline: 
+
+`Embedding(numFeatures, embeddingSize) -> Dense(embeddingSize, hiddenSize, sigmoid) -> Dense(hiddenSize, numLabels)`
+
+The feature embeddings are trained jointly with the overall model. 
+
+Data sets are universal dependency treebanks with available training/dev./test split. Specifically
+
+- The Vietnamese Universal Dependency (VUD) treebank is used to train a Vietnamese part-of-speech tagger (`optionsVUD`). 
+- The English Web Treebank (EWT) is used to train an English part-of-speech tagger (`optionsEWT`).
+- The Bahasa Indonesia Universal Dependency treebank (GSD) is used to train a Bahasa Indonesian part-of-speech tagger (`optionsGSD`).
+
+## Experiment
+
+To train a model, run the file `tdp/src/Classifier.jl`, then invoke the function `train(options)` with a desired options for a language. The resulting files will be saved to subdirectories of `tdp/dat/(lang)/` where `lang` can be `eng`, `vie` or `ind`, etc. These directories should exist before training.
+
+The training stops when the accuracy on the validation corpus does not increase after 3 consecutive epochs. 
+
+## Bahasa Indonesia-2020 Accuracy
+
+- Number of training sentences: 4,4094 (with length not greater than 40), resulting in 135,155 training samples for transition classification;
+- Number of development sentences: 490 (15,757 validation samples)
+- Number of test sentences: 511
+- Options: batch size = 32 
+
+| embeddingSize |  hiddenUnits | trainingAcc | devAcc | testAcc | trainingTime
+| ---:       | :---:   | :---:    | :---:    | :---:    | :---:    | 
+|  100 | 64 | ? | ? | ? | ? (s) MBP | 

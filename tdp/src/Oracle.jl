@@ -44,7 +44,7 @@ function next(config::Config, transition::String)::Config
   if transition == "SH"
     push!(config.stack, dequeue!(config.queue))
   elseif transition == "RE"
-    if options[:verbose] && !reducible(config)
+    if !reducible(config)
       @warn "Pre-condition for RE is not satisfied!"
     end
     pop!(config.stack)
@@ -52,7 +52,7 @@ function next(config::Config, transition::String)::Config
     u = first(config.stack)
     # pre-condition: there does not exist an arc (k, u)
     condition = isempty(filter(arc -> arc.dependent == u, config.arcs))
-    if options[:verbose] && !condition
+    if !condition
       @warn "Pre-condition for LA is not satisfied!"
     end
     u = pop!(config.stack)
@@ -62,7 +62,7 @@ function next(config::Config, transition::String)::Config
     v = first(config.queue)
     # pre-condition: there does not exist an arc (k, v)
     condition = isempty(filter(arc -> arc.dependent == v, config.arcs))
-    if options[:verbose] && !condition
+    if !condition
       @warn "Pre-condition for RA is not satisfied!"
     end
     u = first(config.stack)

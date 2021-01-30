@@ -40,14 +40,14 @@ function vocab(contexts::Array{Context}, minFreq::Int = 2, makeLowercase::Bool =
 end
 
 """
-    batch(contexts, featureIndex, labelIndex)
+    batch(contexts, featureIndex, labelIndex, options)
 
     Create batches of data for training or evaluating. Each batch contains a pair (Xb, Yb) where 
     Xb is a matrix of size (featuresPerContext x batchSize). Each column of Xb is a vector representing a bag of features extracted 
     from a context. If that number of features is less than `featuresPerContext`, this vector is padded with the [UNK] feature,
     which is `1`. Yb is an one-hot matrix of size (numLabels x batchSize).
 """
-function batch(contexts::Array{Context}, featureIndex::Dict{String,Int}, labelIndex::Dict{String,Int})
+function batch(contexts::Array{Context}, featureIndex::Dict{String,Int}, labelIndex::Dict{String,Int}, options=optionsVUD)
     X, y = Array{Array{Int,1},1}(), Array{Int,1}()
     for context in contexts
         x = unique(map(f -> get(featureIndex, f, 1), context.features))
@@ -108,13 +108,13 @@ function train(options::Dict{Symbol,Any})
     end
     close(file)
     # build training dataset
-    Xs, Ys = batch(contexts, featureIndex, labelIndex)
+    Xs, Ys = batch(contexts, featureIndex, labelIndex, options)
     dataset = collect(zip(Xs, Ys))
     @info "numFeatures =  $(options[:numFeatures])"
     @info "numLabels = $(length(labels))"
     @info "numBatches (training) = $(length(dataset))"
 
-    XsDev, YsDev = batch(contextsDev, featureIndex, labelIndex)
+    XsDev, YsDev = batch(contextsDev, featureIndex, labelIndex, options)
     datasetDev = collect(zip(XsDev, YsDev))
     @info "numBatches (development) = $(length(datasetDev))"
 
@@ -155,7 +155,7 @@ function train(options::Dict{Symbol,Any})
     bestDevAccuracy = 0
     @time while (t <= options[:numEpochs]) 
         @info "Epoch $t, k = $k"
-        Flux.train!(loss, params(mlp), dataset, optimizer, cb = Flux.throttle(evalcb, 30))
+        Flux.train!(loss, params(mlp), dataset, optimizer, cb = Flux.throttle(evalcb, 60))
         devAccuracy = accuracy(XsDev, YsDev, length(contextsDev))
         if bestDevAccuracy < devAccuracy
             bestDevAccuracy = devAccuracy
@@ -226,7 +226,7 @@ function eval(options::Dict{Symbol,Any}, sentences::Array{Sentence})
     @info "Number of contexts  = $(length(contexts))"
 
     mlp, featureIndex, labelIndex = load(options)
-    Xs, Ys = batch(contexts, featureIndex, labelIndex)
+    Xs, Ys = batch(contexts, featureIndex, labelIndex, options)
     dataset = collect(zip(Xs, Ys))
     @info "numFeatures = ", options[:numFeatures]
     @info "numBatches  = ", length(dataset)

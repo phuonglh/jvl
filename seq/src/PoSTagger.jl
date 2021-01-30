@@ -122,7 +122,7 @@ function train(options::Dict{Symbol,Any})
     labelIndex = Dict{String,Int}(label => i for (i, label) in enumerate(vocabularies.labels))
     
     # create batches of data, each batch is a 3-d matrix of size 3 x maxSequenceLength x batchSize
-    Xs, Ys = batch(sentences, wordIndex, shapeIndex, posIndex, labelIndex)
+    Xs, Ys = batch(sentences, wordIndex, shapeIndex, posIndex, labelIndex, options)
     dataset = collect(zip(Xs, Ys))
     @info "vocabSize = ", length(wordIndex)
     @info "shapeSize = ", length(shapeIndex)
@@ -162,7 +162,7 @@ function train(options::Dict{Symbol,Any})
         return value
     end
 
-    Us, Vs = batch(sentencesValidation, wordIndex, shapeIndex, posIndex, labelIndex)
+    Us, Vs = batch(sentencesValidation, wordIndex, shapeIndex, posIndex, labelIndex, options)
     datasetValidation = collect(zip(Us, Vs))
 
     optimizer = ADAM()
@@ -189,7 +189,7 @@ function train(options::Dict{Symbol,Any})
     accuracy = evaluate(encoder, Us, Vs, options)
     @info "Validation accuracy = $accuracy"
 
-    Us, Vs = batch(sentencesTest, wordIndex, shapeIndex, posIndex, labelIndex)
+    Us, Vs = batch(sentencesTest, wordIndex, shapeIndex, posIndex, labelIndex, options)
     accuracy = evaluate(encoder, Us, Vs, options)
     @info "Test accuracy = $accuracy"
 
