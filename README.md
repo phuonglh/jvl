@@ -79,10 +79,11 @@ To train a tagger, run the file `seq/NameTagger.jl`. Update the options if neces
 
 | wordSize |  hiddenUnits | trainingF1 | devF1 | testF1 | trainingTime
 | ---:       | :---:   | :---:    | :---:    | :---:    | :---:    | 
-| 50 |  64 | ? | ? | ? | ? (s) Jupiter | 
+| 50 |   64 | 0.8333 | 0.6128 | 0.5072 | 17,728 (s) Jupiter | 
 | 50 |  128 | 0.8475 | 0.6711 | 0.5832 | 18,622 (s) Jupiter | 
 | 100 |  64 | 0.8338 | 0.6290 | 0.5210 | 36,909 (s) Jupiter | 
 | 100 | 128 | 0.8460 | 0.6227 | 0.5051 | 37,604 (s) Jupiter | 
+| 100 | 256 | ? | ? | ? | ? (s) Jupiter | 
 
 ## Bahasa Indonesia-2020 Accuracy
 
@@ -118,13 +119,22 @@ To train a model, run the file `tdp/src/Classifier.jl`, then invoke the function
 
 The training stops when the accuracy on the validation corpus does not increase after 3 consecutive epochs. 
 
-## Bahasa Indonesia-2020 Accuracy
+The `tdp/src/Oracle.jl` utility extracts features from parsing configurations. Each parsing config has an associated stack, buffer and partial arc list. Two top tokens on the stack, two top tokens on the buffer are considered; each has 5 features. Each parsing configuration has thus 20 feature strings. 
+
+After training a classifier, the parser is run to parse or evaluate its accuracy on sets of sentences.
+
+- `run(options, sentences)`: loads a classifier and run the parser on `sentences`, the given sentences are updated directly where each token has `:h` and `:l` annotation specifying its head and dependency label
+- `evaluate(options, sentences)`: evaluates parsing performance in terms of UAS (unlabeled attachment score) and LAS (labeled attachment score). 
+- `evaluate(options)`: loads training/dev./test data sets from the given `options` and evaluates parsing performance on these sets.
+
+
+## Bahasa Indonesia Accuracy
 
 - Number of training sentences: 4,4094 (with length not greater than 40), resulting in 135,155 training samples for transition classification;
 - Number of development sentences: 490 (15,757 validation samples)
 - Number of test sentences: 511
 - Options: batch size = 32 
 
-| embeddingSize |  hiddenUnits | trainingAcc | devAcc | testAcc | trainingTime
+| embeddingSize |  hiddenUnits | trainingScores | devScores | testScores | trainingTime
 | ---:       | :---:   | :---:    | :---:    | :---:    | :---:    | 
-|  100 | 64 | ? | ? | ? | ? (s) MBP | 
+|  100 | 64 | 0.5557; 0.5050 | 0.4499; 0.3822 | 0.4568; 0.3891 | ? (s) MBP, 6 epochs |  100 | 128 | 
