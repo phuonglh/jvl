@@ -1,0 +1,3 @@
+module Model
+
+end # module

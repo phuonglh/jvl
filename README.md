@@ -51,6 +51,7 @@ Training data sets come from different sources:
 
 - The VLSP 2016 corpus for training Vietnamese named entity tagger (`optionsVLSP2016`).
 - The CoNLL 2003 corpus for training English named entity tagger (`optionsCoNLL2003`).
+- The KIK 2020 corpus for training Bahasa Indonesia named entity tagger (`optionsKIK2020`).
 
 ## Experiment
 
@@ -67,8 +68,14 @@ To train a tagger, run the file `seq/NameTagger.jl`. Update the options if neces
 
 | wordSize |  hiddenUnits | trainingF1 | devF1 | testF1 | trainingTime
 | ---:       | :---:   | :---:    | :---:    | :---:    | :---:    |
-| 25 | 32 | 0.6828 | 0.4915 | 0.4915 | MBP |
-| 50 | 32 | ? | ? | ? | ? |
+| 25  | 16 | 0.6654 | 0.4742 | 0.4742 | 11,557 (s) Jupiter | 
+| 25  | 32 | 0.6828 | 0.4915 | 0.4915 | MBP |
+| 25 | 64 | ?
+| 50  | 32 | 0.6730 | 0.4942 | 0.4942 | 14,616 (s) Jupiter |
+| 100 | 16 | 0.6694 | 0.4829 | 0.4829 | 48,858 (s) Jupiter | 
+| 100 | 32 | 0.6560 | 0.4864 | 0.4864 | 30,008 (s) Jupiter |
+| 100 | 64 | 0.6637 | 0.4554 | 0.4554 | 30,618 (s) Jupiter |
+| 100 | 128| 0.7090 | 0.4343 | 0.4343 | 40,645 (s) Jupiter |
 
 ## English CoNLL-2003 Accuracy
 
@@ -83,20 +90,21 @@ To train a tagger, run the file `seq/NameTagger.jl`. Update the options if neces
 | 50 |  128 | 0.8475 | 0.6711 | 0.5832 | 18,622 (s) Jupiter | 
 | 100 |  64 | 0.8338 | 0.6290 | 0.5210 | 36,909 (s) Jupiter | 
 | 100 | 128 | 0.8460 | 0.6227 | 0.5051 | 37,604 (s) Jupiter | 
-| 100 | 256 | ? | ? | ? | ? (s) Jupiter | 
+| 100 | 256 | 0.8270 | 0.6225 | 0.4984 | 39,825 (s) Jupiter | 
 
 ## Bahasa Indonesia-2020 Accuracy
 
 - Number of training sentences: 1,463 (with length not greater than 40)
 - Number of development sentences: 366
 - Number of test sentences: 508
-- Options: 20 epochs, batch size = 32, shape embedding size = 4, part-of-speech embedding size = 25
+- Options: 20 epochs, batch size = 32, shape embedding size = 4, part-of-speech embedding size = 16
 
 | wordSize |  hiddenUnits | trainingF1 | devF1 | testF1 | trainingTime
 | ---:       | :---:   | :---:    | :---:    | :---:    | :---:    | 
 |  25 | 64 | 0.7191 | 0.5720 | 0.5619 | 1,038 (s) MBP | 
 |  50 | 64 | 0.7637 | 0.5282 | 0.6009 | 1,869 (s) MBP | 
 | 100 | 64 | 0.7741 | 0.5662 | 0.5262 | 3,752 (s) MBP | 
+| 100 | 128| 0.8044 | 0.5243 | 0.5049 | 1,131 (s) Jupiter |
 
 # Dependency Parsing
 
@@ -137,4 +145,4 @@ After training a classifier, the parser is run to parse or evaluate its accuracy
 
 | embeddingSize |  hiddenUnits | trainingScores | devScores | testScores | trainingTime
 | ---:       | :---:   | :---:    | :---:    | :---:    | :---:    | 
-|  100 | 64 | 0.5557; 0.5050 | 0.4499; 0.3822 | 0.4568; 0.3891 | ? (s) MBP, 6 epochs |  100 | 128 | 
+|  100 | 64 | 0.5557; 0.5050 | 0.4499; 0.3822 | 0.4568; 0.3891 | ? (s) MBP, 6 epochs 
