@@ -3,10 +3,15 @@ module Resource
 using HTTP, JSON3
 using ..Model, ..Service
 
+using ..VietnameseTokenizer
+
 const ROUTER = HTTP.Router()
 
 listPrimes(req) = Service.listPrimes(JSON3.read(req.body))::Array{Int}
 HTTP.@register(ROUTER, "POST", "/primes", listPrimes)
+
+tokenize(req) = Service.tokenize(JSON3.read(req.body))::Array{Tuple{String,String}}
+HTTP.@register(ROUTER, "GET", "/tok", tokenize)
 
 function requestHandler(req)
     obj = HTTP.handle(ROUTER, req)

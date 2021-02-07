@@ -2,12 +2,12 @@ module Mapper
 
 using ..Model
 
-const STORE = Dict{Int, Array{Int}}()
-const COUNTER = Ref{Int64}(0)
+const STORE = Dict{Symbol,Any}()
 
-function store!(primes)
-    id = COUNTER[] += 1
-    STORE[id] = primes
+function store!(task, result)
+    @info task
+    @info result
+    STORE[task] = result
 end
 
 

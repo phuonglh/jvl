@@ -1,6 +1,9 @@
 module VLP
 
-export Model, Mapper, Service, Resource, Client
+export Model, Mapper, Service, Resource, Client, VietnameseTokenizer
+
+include("tok/VietnameseTokenizer.jl")
+using .VietnameseTokenizer
 
 include("Model.jl")
 using .Model
