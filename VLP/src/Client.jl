@@ -2,7 +2,6 @@ module Client
 
 using HTTP, JSON3
 using ..Model
-using ..VietnameseTokenizer
 
 const SERVER = Ref{String}("http://localhost:8080")
 
@@ -26,6 +25,17 @@ end
 function tokenize(text)::Array{Tuple{String,String}}
     body = (; text)
     resp = HTTP.get(string(SERVER[], "/tok"), [], JSON3.write(body))
+    return JSON3.read(resp.body, Array{Tuple{String,String}})
+end
+
+"""
+    tag(text)
+
+    Part-of-speech tag a text and return an array of (word, tag) pairs.
+"""
+function tag(text)::Array{Tuple{String,String}}
+    body = (; text)
+    resp = HTTP.get(string(SERVER[], "/tag"), [], JSON3.write(body))
     return JSON3.read(resp.body, Array{Tuple{String,String}})
 end
 

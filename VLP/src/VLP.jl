@@ -1,9 +1,12 @@
 module VLP
 
-export Model, Mapper, Service, Resource, Client, VietnameseTokenizer
+export VietnameseTokenizer, PoSTagger, Model, Mapper, Service, Resource, Client
 
 include("tok/VietnameseTokenizer.jl")
 using .VietnameseTokenizer
+
+include("seq/PoSTagger.jl")
+using .PoSTagger
 
 include("Model.jl")
 using .Model

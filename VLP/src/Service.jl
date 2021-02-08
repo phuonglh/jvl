@@ -3,6 +3,7 @@ module Service
 using ..Model, ..Mapper
 
 using ..VietnameseTokenizer
+using ..PoSTagger
 
 function listPrimes(obj)::Array{Int}
     @info obj
@@ -25,7 +26,7 @@ end
 """
     tokenize(obj)
 
-    Tokenize the text in a JSON object and return the result in the form 
+    Tokenize a text in a JSON object and return the result in the form 
     of an array of (word, shape) pairs.
 """
 function tokenize(obj)::Array{Tuple{String,String}}
@@ -34,7 +35,24 @@ function tokenize(obj)::Array{Tuple{String,String}}
     tokens = VietnameseTokenizer.tokenize(obj.text)
     xs = map(token -> (token.text, token.form), tokens)
     Mapper.store!(:tok, xs)
-    return xs
+end
+
+"""
+    tag(obj)
+
+    Tag a text in a JSON object and return the result in the form 
+    of an array of (word, tag) pairs.
+"""
+function tag(obj)::Array{Tuple{String,String}}
+    @info object
+    @assert haskey(obj, :text) && !isempty(obj.text)
+    tokens = VietnameseTokenizer.tokenize(obj.text)
+    words = map(token -> replace(token.text, " " => "_"), tokens)
+    ts = map(word -> PoSTagger.Token(word, Dict(:upos => "NA")), words)
+    sentence = Sentence(ts)
+    tags = PoSTagger.run(encoderPoS, [sentence], optionsVLSP2010, wordIndex, shapeIndex, posIndex, labelIndex)
+    xs = collect(zip(words, tags[1]))
+    Mapper.store!(:tag, xs)
 end
 
 end # module

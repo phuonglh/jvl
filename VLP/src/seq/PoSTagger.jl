@@ -6,7 +6,7 @@
 
 module PoSTagger
 
-export train, evaluate, run
+export train, evaluate, run, optionsVLSP2010, optionsVLSP2016, loadEncoder
 
 using Flux
 using Flux: @epochs
@@ -234,22 +234,24 @@ function run(encoder, X, labelIndex)
 end
 
 """
-    run(sentences, options)
+    run(encoder, sentences, options)
 
     Tag multiple sentences.
 """
-function run(sentences::Array{Sentence,1}, options::Dict{Symbol,Any})
+function run(encoder, sentences::Array{Sentence,1}, options::Dict{Symbol,Any})
     wordIndex = loadIndex(options[:wordPath])
     shapeIndex = loadIndex(options[:shapePath])
     posIndex = loadIndex(options[:posPath])
     labelIndex = loadIndex(options[:labelPath])
-    run(sentences, options, wordIndex, shapeIndex, posIndex, labelIndex)
+    run(encoder, sentences, options, wordIndex, shapeIndex, posIndex, labelIndex)
 end
 
 """
-    run(sentences, options, wordIndex, shapeIndex, posIndex, labelIndex)
+    run(encoder, sentences, options, wordIndex, shapeIndex, posIndex, labelIndex)
+
+    Tag multiple sentences.
 """
-function run(sentences::Array{Sentence,1}, options, wordIndex, shapeIndex, posIndex, labelIndex)
+function run(encoder, sentences::Array{Sentence,1}, options, wordIndex, shapeIndex, posIndex, labelIndex)
     X = Array{Array{Int,2},1}()
     paddingX = [wordIndex[options[:paddingX]]; 1; 1]
     for sentence in sentences
@@ -268,8 +270,6 @@ function run(sentences::Array{Sentence,1}, options, wordIndex, shapeIndex, posIn
     # stack each input batch as a 3-d matrix
     Xs = map(b -> Int.(Flux.batch(b)), Xb)
     
-    @info "Loading encoder..."
-    @load options[:modelPath] encoder
     @info "Tagging sentences. Please wait..."
     Ŷs = collect(Iterators.flatten([run(encoder, X, labelIndex) for X in Xs]))
     @info Ŷs
@@ -280,5 +280,29 @@ function run(sentences::Array{Sentence,1}, options, wordIndex, shapeIndex, posIn
     end
     return prediction
 end
+
+"""
+    run(sentences, options, wordIndex, shapeIndex, posIndex, labelIndex)
+
+    Load a pre-trained encoder and tag given sentences.
+"""
+function run(sentences::Array{Sentence,1}, options, wordIndex, shapeIndex, posIndex, labelIndex)
+    @info "Loading encoder..."
+    @load options[:modelPath] encoder
+    run(encoder, sentences, options, wordIndex, shapeIndex, posIndex, labelIndex)
+end
+
+
+"""
+    loadEncoder(options)
+
+    Load a pre-trained encoder.
+"""
+function loadEncoder(options)
+    @info "Loading a pre-trained encoder for PoS tagging..."
+    @load options[:modelPath] encoder
+    return encoder
+end
+
 
 end # module
