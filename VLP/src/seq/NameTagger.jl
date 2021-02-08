@@ -96,7 +96,7 @@ function train(options::Dict{Symbol,Any})
     sentencesValidation = readCorpusCoNLL(options[:validCorpus], options[:threeColumns])
     @info "Number of training sentences = $(length(sentences))"
     @info "Number of validation sentences = $(length(sentencesValidation))"
-    vocabularies = vocab(sentences)
+    vocabularies = vocab(sentences, options[:minFreq])
     
     prepend!(vocabularies.words, [options[:unknown]])
     append!(vocabularies.words, [options[:paddingX]])

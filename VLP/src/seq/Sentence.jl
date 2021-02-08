@@ -11,7 +11,7 @@ struct Sentence
 end
 
 """
-    readCorpus(path, maxSentenceLength=40)
+    readCorpusUD(path, maxSentenceLength=40)
 
     Read a CoNLLU file to build dependency graphs. Each graph is a sentence.
 """
@@ -42,7 +42,7 @@ function readCorpusUD(path::String, maxSentenceLength::Int=40)::Array{Sentence}
 end
 
 """
-    readCorpus(path, threeColumns::Bool=false, maxSentenceLength=40)
+    readCorpusCoNLL(path, threeColumns::Bool=false, maxSentenceLength=40)
 
     Read a CoNLL-2003 file to build named-entity tagged sentences. The Bahasa Indonesia 
     corpus has 3 columns: word, part-of-speech, and NE tag; if reading this corpus, we 
@@ -75,4 +75,42 @@ function readCorpusCoNLL(path::String, threeColumns::Bool=false, maxSentenceLeng
         j = i+1
     end
     sentences
+end
+
+"""
+    readCorpusVLSP(path, maxSentenceLength)
+
+    Read VLSP-2010 corpus for part-of-speech tagging
+"""
+function readCorpusVLSP(path::String, maxSentenceLength::Int=40)::Array{Sentence}
+    sentences = Sentence[]
+    lines = readlines(path)
+    for line in lines
+        wts = string.(split(strip(line), r"[\s]+"))
+        tokens = Token[]
+        for wt in wts
+            annotation = Dict{Symbol,String}()
+            parts = string.(split(wt, r"/"))
+            if (length(parts) == 2)
+                annotation[:pos] = parts[2]
+                token = Token(parts[1], annotation)
+                push!(tokens, token)
+            else
+                j = findlast("/", wt)[1]
+                if (j == length(wt)) # the case ///
+                    annotation[:pos] = "/"
+                    push!(tokens, Token("/", annotation))
+                else
+                    w = wt[1:j-1]
+                    annotation[:pos] = wt[j+1:end]
+                    push!(tokens, Token(w, annotation))
+                end
+            end
+            annotation[:upos] = "NA"
+        end
+        n = min(maxSentenceLength, length(tokens))
+        push!(sentences, Sentence(tokens[1:n]))
+    end
+    # filter sentences...
+    filter(sentence -> length(sentence.tokens) <= maxSentenceLength, sentences)
 end

@@ -1,4 +1,36 @@
-# For Vietnamese PoS tagging
+# For Vietnamese PoS tagging on the VLSP-2010 treebank
+optionsVLSP2010 = Dict{Symbol,Any}(
+    :minFreq => 2,
+    :lowercase => true,
+    :vocabSize => 2^16,
+    :wordSize => 50,
+    :shapeSize => 4,
+    :posSize => 1,
+    :hiddenSize => 64,
+    :maxSequenceLength => 40,
+    :batchSize => 32,
+    :numEpochs => 20,
+    :trainCorpus => string(pwd(), "/dat/vtb/vtb-tagged.txt"),
+    :validCorpus => string(pwd(), "/dat/vtb/vtb-tagged.txt"),
+    :testCorpus => string(pwd(), "/dat/vtb/vtb-tagged.txt"),
+    :modelPath => string(pwd(), "/dat/pos/vtb-network.bson"),
+    :wordPath => string(pwd(), "/dat/pos/vtb-word.txt"),
+    :shapePath => string(pwd(), "/dat/pos/vtb-shape.txt"),
+    :posPath => string(pwd(), "/dat/pos/vtb-partOfSpeech.txt"),
+    :labelPath => string(pwd(), "/dat/pos/vtb-label.txt"),
+    :numCores => 4,
+    :verbose => false,
+    :logPath => string(pwd(), "/dat/pos/vtb-loss.txt"),
+    :unknown => "[UNK]",
+    :paddingX => "[PAD_X]",
+    :paddingY => "[PAD_Y]",
+    :trainOutput => string(pwd(), "/dat/pos/vtb-train.out"),
+    :validOutput => string(pwd(), "/dat/pos/vtb-test.out"),
+    :testOutput => string(pwd(), "/dat/pos/vtb-test.out"),
+    :columnFormat => false
+)
+
+# For Vietnamese PoS tagging on the Vietnamese UD treebank
 optionsVUD = Dict{Symbol,Any}(
     :minFreq => 2,
     :lowercase => true,
@@ -26,10 +58,11 @@ optionsVUD = Dict{Symbol,Any}(
     :paddingY => "[PAD_Y]",
     :trainOutput => string(pwd(), "/dat/pos/vie-train.out"),
     :validOutput => string(pwd(), "/dat/pos/vie-test.out"),
-    :testOutput => string(pwd(), "/dat/pos/vie-test.out")
+    :testOutput => string(pwd(), "/dat/pos/vie-test.out"),
+    :columnFormat => true
 )
 
-# For English PoS tagging
+# For English PoS tagging on the English Web Treebank
 optionsEWT = Dict{Symbol,Any}(
     :minFreq => 2,
     :lowercase => true,
@@ -57,10 +90,11 @@ optionsEWT = Dict{Symbol,Any}(
     :paddingY => "[PAD_Y]",
     :trainOutput => string(pwd(), "/dat/pos/eng-train.out"),
     :validOutput => string(pwd(), "/dat/pos/eng-test.out"),
-    :testOutput => string(pwd(), "/dat/pos/eng-test.out")
+    :testOutput => string(pwd(), "/dat/pos/eng-test.out"),
+    :columnFormat => true
 )
 
-# For Bahasa Indonesia PoS tagging
+# For Bahasa Indonesia PoS tagging on GSD treebank
 optionsGSD = Dict{Symbol,Any}(
     :minFreq => 1,
     :lowercase => true,
@@ -88,7 +122,8 @@ optionsGSD = Dict{Symbol,Any}(
     :paddingY => "[PAD_Y]",
     :trainOutput => string(pwd(), "/dat/pos/ind-train.out"),
     :validOutput => string(pwd(), "/dat/pos/ind-test.out"),
-    :testOutput => string(pwd(), "/dat/pos/ind-test.out")
+    :testOutput => string(pwd(), "/dat/pos/ind-test.out"),
+    :columnFormat => true
 )
 
 # For Vietnamese NER

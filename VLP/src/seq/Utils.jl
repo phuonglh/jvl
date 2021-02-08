@@ -1,3 +1,4 @@
+using Random
 
 struct Vocabularies
     words::Array{String}
@@ -34,4 +35,29 @@ function loadIndex(path)::Dict{String,Int}
         push!(pairs, (w, i))
     end
     return Dict(pair[1] => pair[2] for pair in pairs)
+end
+
+"""
+    shuffleSentences(sentences)
+
+    Shuffle an array of sentences randomly.
+"""
+function shuffleSentences(sentences::Array{Sentence})::Array{Sentence}
+    rng = MersenneTwister(220712)
+    shuffle!(rng, sentences)
+end
+
+"""
+    splitSentences(sentences, ratios)
+
+    Split an array of sentences into three parts according to given ratios. This 
+    function is helpful for train./dev./test partitionning.
+"""
+function splitSentences(sentences::Array{Sentence}, ratios=[0.70, 0.15, 0.15])
+    m = Int(round(length(sentences)*ratios[1]))
+    first = sentences[1:m]
+    n = Int(round(length(sentences)*(ratios[1] + ratios[2])))
+    second = sentences[m+1:n]
+    third = sentences[n+1:end]
+    return (first, second, third)
 end

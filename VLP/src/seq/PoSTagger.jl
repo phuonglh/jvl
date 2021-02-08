@@ -88,14 +88,18 @@ end
     Train an encoder.
 """
 function train(options::Dict{Symbol,Any})
-    sentences = readCorpusUD(options[:trainCorpus])
-    sentencesValidation = readCorpusUD(options[:validCorpus])
-    sentencesTest = readCorpusUD(options[:testCorpus])
+    (sentences, sentencesValidation, sentencesTest) = if (options[:columnFormat])
+        (readCorpusUD(options[:trainCorpus]), readCorpusUD(options[:validCorpus]), readCorpusUD(options[:testCorpus]))
+    else
+        ss = readCorpusVLSP(options[:trainCorpus])
+        ss = shuffleSentences(ss)
+        splitSentences(ss, [0.8, 0.1, 0.1])
+    end
     @info "Number of training sentences = $(length(sentences))"
     @info "Number of validation sentences = $(length(sentencesValidation))"
     @info "Number of test sentences = $(length(sentencesTest))"
 
-    vocabularies = vocab(sentences)
+    vocabularies = vocab(sentences, options[:minFreq])
     
     prepend!(vocabularies.words, [options[:unknown]])
     append!(vocabularies.words, [options[:paddingX]])
@@ -229,6 +233,11 @@ function run(encoder, X, labelIndex)
     map(ŷ -> labels[ŷ], Ŷ)
 end
 
+"""
+    run(sentences, options)
+
+    Tag multiple sentences.
+"""
 function run(sentences::Array{Sentence,1}, options::Dict{Symbol,Any})
     wordIndex = loadIndex(options[:wordPath])
     shapeIndex = loadIndex(options[:shapePath])
@@ -237,6 +246,9 @@ function run(sentences::Array{Sentence,1}, options::Dict{Symbol,Any})
     run(sentences, options, wordIndex, shapeIndex, posIndex, labelIndex)
 end
 
+"""
+    run(sentences, options, wordIndex, shapeIndex, posIndex, labelIndex)
+"""
 function run(sentences::Array{Sentence,1}, options, wordIndex, shapeIndex, posIndex, labelIndex)
     X = Array{Array{Int,2},1}()
     paddingX = [wordIndex[options[:paddingX]]; 1; 1]
