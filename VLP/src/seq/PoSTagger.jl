@@ -299,7 +299,7 @@ end
     Load a pre-trained encoder.
 """
 function loadEncoder(options)
-    @info "Loading a pre-trained encoder for PoS tagging..."
+    @info "Loading a pre-trained part-of-speech tagger (encoderPoS)..."
     @load options[:modelPath] encoder
     return encoder
 end

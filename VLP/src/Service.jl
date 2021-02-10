@@ -44,13 +44,14 @@ end
     of an array of (word, tag) pairs.
 """
 function tag(obj)::Array{Tuple{String,String}}
-    @info object
+    @info obj
     @assert haskey(obj, :text) && !isempty(obj.text)
     tokens = VietnameseTokenizer.tokenize(obj.text)
     words = map(token -> replace(token.text, " " => "_"), tokens)
     ts = map(word -> PoSTagger.Token(word, Dict(:upos => "NA")), words)
-    sentence = Sentence(ts)
-    tags = PoSTagger.run(encoderPoS, [sentence], optionsVLSP2010, wordIndex, shapeIndex, posIndex, labelIndex)
+    @info ts
+    sentence = PoSTagger.Sentence(ts)
+    tags = PoSTagger.run(Model.encoderPoS, [sentence], Model.options, Model.wordIndexPoS, Model.shapeIndexPoS, Model.posIndexPoS, Model.labelIndexPoS)
     xs = collect(zip(words, tags[1]))
     Mapper.store!(:tag, xs)
 end
