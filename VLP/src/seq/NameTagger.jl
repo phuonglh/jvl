@@ -244,11 +244,11 @@ function predict(encoder, Xs, Ys, labelIndex::Dict{String,Int}, outputPath::Stri
 end
 
 """
-    evaluate(options)
+    evaluate(encoder, options)
 
     Run the prediction on all train/dev./test corpus and save the results to corresponding output files.
 """
-function evaluate(options)
+function evaluate(encoder, options)
     sentences = readCorpusCoNLL(options[:trainCorpus], options[:threeColumns])
     sentencesValidation = readCorpusCoNLL(options[:validCorpus], options[:threeColumns])
     sentencesTest = readCorpusCoNLL(options[:testCorpus], options[:threeColumns])
