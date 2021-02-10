@@ -8,7 +8,7 @@
 
 module NameTagger
 
-export train, evaluate, eval
+export train, evaluate, run, optionsVLSP2016, loadEncoder
 
 using Flux
 using Flux: @epochs
@@ -244,11 +244,11 @@ function predict(encoder, Xs, Ys, labelIndex::Dict{String,Int}, outputPath::Stri
 end
 
 """
-    eval(options)
+    evaluate(options)
 
     Run the prediction on all train/dev./test corpus and save the results to corresponding output files.
 """
-function eval(options)
+function evaluate(options)
     sentences = readCorpusCoNLL(options[:trainCorpus], options[:threeColumns])
     sentencesValidation = readCorpusCoNLL(options[:validCorpus], options[:threeColumns])
     sentencesTest = readCorpusCoNLL(options[:testCorpus], options[:threeColumns])
@@ -273,5 +273,84 @@ function eval(options)
     @info "Predicting test set..."
     predict(encoder, XsT, YsT, labelIndex, options[:testOutput], options)
 end
+
+"""
+    run(encoder, X)
+
+    Tag an input batch and return the output batch. `X` is a 3-d matrix of size `3 x 40 x b` where 
+    `b` is a batch size, `40` is the maximum sequence length and `3` is the size of vector representing 
+    a token (word index, shape index, part-of-speech index).
+"""
+function run(encoder, X, labelIndex)
+    b = size(X,3)
+    Flux.reset!(encoder)
+    Ŷ = Flux.onecold.(encoder(X[:,:,t]) for t=1:b)
+    labels = fill("", length(labelIndex))
+    for a in keys(labelIndex)
+        labels[labelIndex[a]] = a
+    end
+    map(ŷ -> labels[ŷ], Ŷ)
+end
+
+"""
+    run(encoder, sentences, options)
+
+    Tag multiple sentences.
+"""
+function run(encoder, sentences::Array{Sentence,1}, options::Dict{Symbol,Any})
+    wordIndex = loadIndex(options[:wordPath])
+    shapeIndex = loadIndex(options[:shapePath])
+    posIndex = loadIndex(options[:posPath])
+    labelIndex = loadIndex(options[:labelPath])
+    run(encoder, sentences, options, wordIndex, shapeIndex, posIndex, labelIndex)
+end
+
+"""
+    run(encoder, sentences, options, wordIndex, shapeIndex, posIndex, labelIndex)
+
+    Tag multiple sentences.
+"""
+function run(encoder, sentences::Array{Sentence,1}, options, wordIndex, shapeIndex, posIndex, labelIndex)
+    X = Array{Array{Int,2},1}()
+    paddingX = [wordIndex[options[:paddingX]]; 1; 1]
+    for sentence in sentences
+        xs = map(token -> [get(wordIndex, lowercase(token.word), 1), get(shapeIndex, shape(token.word), 1), get(posIndex, token.annotation[:p], 1)], sentence.tokens)
+        # pad the columns of xs to maxSequenceLength
+        if length(xs) > options[:maxSequenceLength]
+            xs = xs[1:options[:maxSequenceLength]]
+        end
+        for t=length(xs)+1:options[:maxSequenceLength]
+            push!(xs, paddingX) 
+        end
+        push!(X, Flux.batch(xs))
+    end
+    # build batches of data
+    Xb = Iterators.partition(X, options[:batchSize])
+    # stack each input batch as a 3-d matrix
+    Xs = map(b -> Int.(Flux.batch(b)), Xb)
+    
+    @info "Tagging sentences. Please wait..."
+    Ŷs = collect(Iterators.flatten([run(encoder, X, labelIndex) for X in Xs]))
+    @info Ŷs
+    prediction = Array{Array{String},1}()
+    for i=1:length(sentences)
+        n = length(sentences[i].tokens)
+        push!(prediction, Ŷs[i][1:n])
+    end
+    return prediction
+end
+
+
+"""
+    loadEncoder(options)
+
+    Load a pre-trained encoder.
+"""
+function loadEncoder(options)
+    @info "Loading a pre-trained name tagger (encoderNE)..."
+    @load options[:modelPath] encoder
+    return encoder
+end
+
 
 end # module

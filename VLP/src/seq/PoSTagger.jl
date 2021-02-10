@@ -6,7 +6,7 @@
 
 module PoSTagger
 
-export train, evaluate, run, optionsVLSP2010, optionsVLSP2016, loadEncoder
+export train, evaluate, run, optionsVLSP2010, loadEncoder
 
 using Flux
 using Flux: @epochs
@@ -256,7 +256,7 @@ function run(encoder, sentences::Array{Sentence,1}, options, wordIndex, shapeInd
     paddingX = [wordIndex[options[:paddingX]]; 1; 1]
     for sentence in sentences
         xs = map(token -> [get(wordIndex, lowercase(token.word), 1), get(shapeIndex, shape(token.word), 1), get(posIndex, token.annotation[:upos], 1)], sentence.tokens)
-        # pad the columns of xs and ys to maxSequenceLength
+        # pad the columns of xs to maxSequenceLength
         if length(xs) > options[:maxSequenceLength]
             xs = xs[1:options[:maxSequenceLength]]
         end
