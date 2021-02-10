@@ -3,7 +3,7 @@ module Client
 using HTTP, JSON3
 using ..Model
 
-const SERVER = Ref{String}("http://localhost:8080")
+const SERVER = Ref{String}("http://localhost:8085")
 
 """
     listPrimes(u, v)
@@ -20,23 +20,23 @@ end
 """
     tokenize(text)
 
-    Tokenize a text and return an array of (word, shape) pairs.
+    Tokenize a text and return result.
 """
-function tokenize(text)::Array{Tuple{String,String}}
+function tokenize(text)::Analysis
     body = (; text)
-    resp = HTTP.get(string(SERVER[], "/tok"), [], JSON3.write(body))
-    return JSON3.read(resp.body, Array{Tuple{String,String}})
+    resp = HTTP.post(string(SERVER[], "/tok"), [], JSON3.write(body))
+    return JSON3.read(resp.body, Analysis)
 end
 
 """
     tag(text)
 
-    Part-of-speech tag a text and return an array of (word, tag) pairs.
+    Part-of-speech tag a text and return result.
 """
-function tag(text)::Array{Tuple{String,String}}
+function tag(text)::Analysis
     body = (; text)
-    resp = HTTP.get(string(SERVER[], "/tag"), [], JSON3.write(body))
-    return JSON3.read(resp.body, Array{Tuple{String,String}})
+    resp = HTTP.post(string(SERVER[], "/tag"), [], JSON3.write(body))
+    return JSON3.read(resp.body, Analysis)
 end
 
 end # module

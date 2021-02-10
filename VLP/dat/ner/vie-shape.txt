@@ -1,0 +1,15 @@
+number 1
+date1 2
+date3 3
+acronym 4
+duration 5
+name 6
+allcap 7
+bracket 8
+date2 9
+numberSeq 10
+phrase 11
+url 12
+capital 13
+other 14
+punct 15

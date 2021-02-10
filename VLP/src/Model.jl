@@ -1,10 +1,21 @@
 module Model
 
+export Analysis
 export wordIndexPoS, shapeIndexPoS, posIndexPoS, labelIndexPoS, encoderPoS
 export wordIndexName, shapeIndexName, posIndexName, labelIndexName, encoderName
 
 using ..PoSTagger
 using ..NameTagger
+using StructTypes
+
+struct Analysis
+    text::String
+    tokens::String
+    label::String
+end
+
+StructTypes.StructType(::Type{Analysis}) = StructTypes.Struct()
+
 
 # Part-of-speech tagging
 options = PoSTagger.optionsVLSP2010

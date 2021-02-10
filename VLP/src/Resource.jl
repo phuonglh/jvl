@@ -8,11 +8,11 @@ const ROUTER = HTTP.Router()
 listPrimes(req) = Service.listPrimes(JSON3.read(req.body))::Array{Int}
 HTTP.@register(ROUTER, "POST", "/primes", listPrimes)
 
-tokenize(req) = Service.tokenize(JSON3.read(req.body))::Array{Tuple{String,String}}
-HTTP.@register(ROUTER, "GET", "/tok", tokenize)
+tokenize(req) = Service.tokenize(JSON3.read(req.body))::Analysis
+HTTP.@register(ROUTER, "POST", "/tok", tokenize)
 
-tag(req) = Service.tag(JSON3.read(req.body))::Array{Tuple{String,String}}
-HTTP.@register(ROUTER, "GET", "/tag", tag)
+tag(req) = Service.tag(JSON3.read(req.body))::Analysis
+HTTP.@register(ROUTER, "POST", "/tag", tag)
 
 function requestHandler(req)
     obj = HTTP.handle(ROUTER, req)
@@ -20,7 +20,7 @@ function requestHandler(req)
 end
 
 function run()
-    HTTP.serve(requestHandler, "0.0.0.0", 8080)
+    HTTP.serve(requestHandler, "0.0.0.0", 8085)
 end
 
 end # module

@@ -26,25 +26,24 @@ end
 """
     tokenize(obj)
 
-    Tokenize a text in a JSON object and return the result in the form 
-    of an array of (word, shape) pairs.
+    Tokenize a text in a JSON object and return the result.
 """
-function tokenize(obj)::Array{Tuple{String,String}}
+function tokenize(obj)::Analysis
     @info obj
     @assert haskey(obj, :text) && !isempty(obj.text)
     tokens = VietnameseTokenizer.tokenize(obj.text)
-    xs = map(token -> (token.text, token.form), tokens)
-    Mapper.store!(:tok, xs)
-    return xs
+    words = join(map(token -> token.text, tokens), " ")
+    analysis = Analysis(obj.text, words, "NA")
+    Mapper.store!(:tok, words)
+    return analysis
 end
 
 """
     tag(obj)
 
-    Tag a text in a JSON object and return the result in the form 
-    of an array of (word, tag) pairs.
+    Tag a text in a JSON object and return the result.
 """
-function tag(obj)::Array{Tuple{String,String}}
+function tag(obj)
     @info obj
     @assert haskey(obj, :text) && !isempty(obj.text)
     tokens = VietnameseTokenizer.tokenize(obj.text)
@@ -53,9 +52,11 @@ function tag(obj)::Array{Tuple{String,String}}
     @info ts
     sentence = PoSTagger.Sentence(ts)
     tags = PoSTagger.run(Model.encoderPoS, [sentence], Model.options, Model.wordIndexPoS, Model.shapeIndexPoS, Model.posIndexPoS, Model.labelIndexPoS)
-    xs = collect(zip(words, tags[1]))
-    Mapper.store!(:tag, xs)
-    return xs
+    pairs = collect(zip(words, tags[1]))
+    xs = join(pairs, ", ")
+    analysis = Analysis(obj.text, xs, "NA")
+    Mapper.store!(:tag, pairs)
+    return analysis
 end
 
 end # module
