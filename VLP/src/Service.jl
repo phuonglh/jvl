@@ -35,6 +35,7 @@ function tokenize(obj)::Array{Tuple{String,String}}
     tokens = VietnameseTokenizer.tokenize(obj.text)
     xs = map(token -> (token.text, token.form), tokens)
     Mapper.store!(:tok, xs)
+    return xs
 end
 
 """
@@ -54,6 +55,7 @@ function tag(obj)::Array{Tuple{String,String}}
     tags = PoSTagger.run(Model.encoderPoS, [sentence], Model.options, Model.wordIndexPoS, Model.shapeIndexPoS, Model.posIndexPoS, Model.labelIndexPoS)
     xs = collect(zip(words, tags[1]))
     Mapper.store!(:tag, xs)
+    return xs
 end
 
 end # module
