@@ -5,6 +5,7 @@
 # and a set of all tail/label relation separated by the space character.
 
 include("../seq/Sentence.jl")
+include("../seq/Corpus.jl")
 include("../seq/Options.jl")
 
 struct Triplet
@@ -19,7 +20,7 @@ end
     Extracts all triplets from the training set, return a list of words (vocabulary) and a set of triplets.
 """
 function extractTriplets(options)::Tuple{Array{String},Set{Triplet}}
-    sentences = readCorpus(options[:trainCorpus], options[:maxSequenceLength])
+    sentences = readCorpusUD(options[:trainCorpus], options[:maxSequenceLength])
     words = Set{String}()
     triplets = Set{Triplet}()
     for sentence in sentences
