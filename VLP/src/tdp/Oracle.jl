@@ -1,5 +1,3 @@
-module DependencyParser
-
 using DataStructures
 
 include("../seq/Sentence.jl")
@@ -173,4 +171,3 @@ function decode(sentence::Sentence)::Array{Context}
     contexts
 end
 
-end # module

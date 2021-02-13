@@ -2,6 +2,7 @@
 ### Transition-based dependency parsing.
 ### December 10, 2020.
 
+module TransitionClassifier
 
 using Flux
 using Flux: @epochs
@@ -10,10 +11,11 @@ using CUDA
 
 include("Oracle.jl")
 include("Embedding.jl")
+include("../seq/Options.jl")
 
 function model(options::Dict{Symbol,Any}, numLabels::Int)
     Chain(
-        Embedding(options[:numFeatures], options[:embeddingSize]),
+        Embedding(options[:vocabSize], options[:embeddingSize]),
         Dense(options[:embeddingSize], options[:hiddenSize], σ),
         Dense(options[:hiddenSize], numLabels)
     )
@@ -73,12 +75,12 @@ end
 """
 function train(options::Dict{Symbol,Any})
     # load training data
-    sentences = readCorpus(options[:trainCorpus], options[:maxSequenceLength])
+    sentences = readCorpusUD(options[:trainCorpus], options[:maxSequenceLength])
     contexts = collect(Iterators.flatten(map(sentence -> decode(sentence), sentences)))
     @info "Number of sentencesTrain = $(length(sentences))"
     @info "Number of contextsTrain  = $(length(contexts))"
     # load development data
-    sentencesDev = readCorpus(options[:devCorpus], options[:maxSequenceLength])
+    sentencesDev = readCorpusUD(options[:validCorpus], options[:maxSequenceLength])
     contextsDev = collect(Iterators.flatten(map(sentence -> decode(sentence), sentencesDev)))
     @info "Number of sentencesDev = $(length(sentencesDev))"
     @info "Number of contextsDev  = $(length(contextsDev))"
@@ -87,22 +89,22 @@ function train(options::Dict{Symbol,Any})
     vocabulary, labels = vocab(contexts, options[:minFreq], options[:lowercase])
     # add [UNK] symbol at index 1
     prepend!(vocabulary, ["[UNK]"])
-    if length(vocabulary) < options[:numFeatures]
-        options[:numFeatures] = length(vocabulary)
+    if length(vocabulary) < options[:vocabSize]
+        options[:vocabSize] = length(vocabulary)
     else
-        resize!(vocabulary, options[:numFeatures])
+        resize!(vocabulary, options[:vocabSize])
     end
     # build a feature index to map each feature to an id
     featureIndex = Dict{String, Int}(feature => i for (i, feature) in enumerate(vocabulary))
     # build a label index to map each transition to an id
     labelIndex = Dict{String, Int}(label => i for (i, label) in enumerate(labels))
     # save the vocabulary and label to external files
-    file = open(options[:vocabPath], "w")
+    file = open(options[:featurePath], "w")
     for f in vocabulary
         write(file, string(f, " ", featureIndex[f]), "\n")
     end
     close(file)
-    file = open(options[:labelPath], "w")
+    file = open(options[:transitionPath], "w")
     for f in labels
         write(file, string(f, " ", labelIndex[f]), "\n")
     end
@@ -110,7 +112,7 @@ function train(options::Dict{Symbol,Any})
     # build training dataset
     Xs, Ys = batch(contexts, featureIndex, labelIndex, options)
     dataset = collect(zip(Xs, Ys))
-    @info "numFeatures =  $(options[:numFeatures])"
+    @info "numFeatures =  $(options[:vocabSize])"
     @info "numLabels = $(length(labels))"
     @info "numBatches (training) = $(length(dataset))"
 
@@ -132,7 +134,7 @@ function train(options::Dict{Symbol,Any})
     # define a loss function, an optimizer and train the model
     loss(x, y) = Flux.logitcrossentropy(mlp(x), y)
     optimizer = ADAM()
-    file = open(options[:logPath], "w")
+    file = open(options[:logParsingPath], "w")
     write(file, "dev. loss,trainingAcc,devAcc\n")
     # evaluate the model on a dataset
     function accuracy(Xs, Ys, numContexts)
@@ -180,7 +182,7 @@ function train(options::Dict{Symbol,Any})
     if options[:gpu]
         mlp = mlp |> cpu
     end
-    @save options[:modelPath] mlp
+    @save options[:classifierPath] mlp
     mlp
 end
 
@@ -209,18 +211,18 @@ end
     Load a pre-trained classifier and return a triple of (mlp, featureIndex, labelIndex).    
 """
 function load(options::Dict{Symbol,Any})::Tuple{Chain,Dict{String,Int},Dict{String,Int}}
-    @load options[:modelPath] mlp
-    featureIndex = dict(options[:vocabPath])
-    labelIndex = dict(options[:labelPath])
+    @load options[:classifierPath] mlp
+    featureIndex = dict(options[:featurePath])
+    labelIndex = dict(options[:transitionPath])
     (mlp, featureIndex, labelIndex)
 end
 
 """
-    eval(options, sentences)
+    evaluate(options, sentences)
 
     Evaluate the accuracy of the transition classifier.
 """
-function eval(options::Dict{Symbol,Any}, sentences::Array{Sentence})
+function evaluate(options::Dict{Symbol,Any}, sentences::Array{Sentence})
     contexts = collect(Iterators.flatten(map(sentence -> decode(sentence), sentences)))   
     @info "Number of sentences = $(length(sentences))"
     @info "Number of contexts  = $(length(contexts))"
@@ -228,7 +230,7 @@ function eval(options::Dict{Symbol,Any}, sentences::Array{Sentence})
     mlp, featureIndex, labelIndex = load(options)
     Xs, Ys = batch(contexts, featureIndex, labelIndex, options)
     dataset = collect(zip(Xs, Ys))
-    @info "numFeatures = ", options[:numFeatures]
+    @info "numFeatures = ", options[:vocabSize]
     @info "numBatches  = ", length(dataset)
     @info typeof(dataset[1][1]), size(dataset[1][1])
     @info typeof(dataset[1][2]), size(dataset[1][2])
@@ -243,9 +245,4 @@ function eval(options::Dict{Symbol,Any}, sentences::Array{Sentence})
     mlp
 end
 
-# mlp = if options[:mode] == :train
-#     train(options)
-# elseif options[:mode] == :eval
-#     sentencesTest = readCorpus(options[:testCorpus], options[:maxSequenceLength])
-#     eval(options, sentencesTest)
-# end
+end # module 

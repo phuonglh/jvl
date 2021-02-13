@@ -30,7 +30,7 @@ optionsVLSP2010 = Dict{Symbol,Any}(
     :columnFormat => false
 )
 
-# For Vietnamese PoS tagging on the Vietnamese UD treebank
+# For Vietnamese PoS tagging and dependency parsing on the Vietnamese UD treebank
 optionsVUD = Dict{Symbol,Any}(
     :minFreq => 2,
     :lowercase => true,
@@ -50,19 +50,26 @@ optionsVUD = Dict{Symbol,Any}(
     :shapePath => string(pwd(), "/dat/pos/vie-shape.txt"),
     :posPath => string(pwd(), "/dat/pos/vie-partOfSpeech.txt"),
     :labelPath => string(pwd(), "/dat/pos/vie-label.txt"),
+    :logPath => string(pwd(), "/dat/pos/vie-loss.txt"),
+    :featuresPerContext => 20,
+    :embeddingSize => 50,
+    :transitionPath => string(pwd(), "/dat/tdp/vie-label.txt"),
+    :featurePath => string(pwd(), "/dat/tdp/vie-feature.txt"),
+    :logParsingPath => string(pwd(), "/dat/tdp/vie-loss.txt"),
+    :classifierPath => string(pwd(), "/dat/tdp/vie-network.bson"),
     :numCores => 4,
     :verbose => false,
-    :logPath => string(pwd(), "/dat/pos/vie-loss.txt"),
     :unknown => "[UNK]",
     :paddingX => "[PAD_X]",
     :paddingY => "[PAD_Y]",
     :trainOutput => string(pwd(), "/dat/pos/vie-train.out"),
     :validOutput => string(pwd(), "/dat/pos/vie-test.out"),
     :testOutput => string(pwd(), "/dat/pos/vie-test.out"),
-    :columnFormat => true
+    :columnFormat => true,
+    :gpu => false
 )
 
-# For English PoS tagging on the English Web Treebank
+# For English PoS tagging and dependency parsing on the English Web Treebank
 optionsEWT = Dict{Symbol,Any}(
     :minFreq => 2,
     :lowercase => true,
@@ -82,19 +89,26 @@ optionsEWT = Dict{Symbol,Any}(
     :shapePath => string(pwd(), "/dat/pos/eng-shape.txt"),
     :posPath => string(pwd(), "/dat/pos/eng-partOfSpeech.txt"),
     :labelPath => string(pwd(), "/dat/pos/eng-label.txt"),
+    :logPath => string(pwd(), "/dat/pos/eng-loss.txt"),
+    :featuresPerContext => 20,
+    :embeddingSize => 50,
+    :transitionPath => string(pwd(), "/dat/tdp/eng-label.txt"),
+    :featurePath => string(pwd(), "/dat/tdp/eng-feature.txt"),
+    :logParsingPath => string(pwd(), "/dat/tdp/eng-loss.txt"),
+    :classifierPath => string(pwd(), "/dat/tdp/eng-network.bson"),
     :numCores => 4,
     :verbose => false,
-    :logPath => string(pwd(), "/dat/pos/eng-loss.txt"),
     :unknown => "[UNK]",
     :paddingX => "[PAD_X]",
     :paddingY => "[PAD_Y]",
     :trainOutput => string(pwd(), "/dat/pos/eng-train.out"),
     :validOutput => string(pwd(), "/dat/pos/eng-test.out"),
     :testOutput => string(pwd(), "/dat/pos/eng-test.out"),
-    :columnFormat => true
+    :columnFormat => true,
+    :gpu => false
 )
 
-# For Bahasa Indonesia PoS tagging on GSD treebank
+# For Bahasa Indonesia PoS tagging and dependency parsing on the GSD treebank
 optionsGSD = Dict{Symbol,Any}(
     :minFreq => 1,
     :lowercase => true,
@@ -114,16 +128,23 @@ optionsGSD = Dict{Symbol,Any}(
     :shapePath => string(pwd(), "/dat/pos/ind-shape.txt"),
     :posPath => string(pwd(), "/dat/pos/ind-partOfSpeech.txt"),
     :labelPath => string(pwd(), "/dat/pos/ind-label.txt"),
+    :logPath => string(pwd(), "/dat/pos/ind-loss.txt"),
+    :featuresPerContext => 20,
+    :embeddingSize => 50,
+    :transitionPath => string(pwd(), "/dat/tdp/ind-label.txt"),
+    :featurePath => string(pwd(), "/dat/tdp/ind-feature.txt"),
+    :logParsingPath => string(pwd(), "/dat/tdp/ind-loss.txt"),
+    :classifierPath => string(pwd(), "/dat/tdp/ind-network.bson"),
     :numCores => 4,
     :verbose => false,
-    :logPath => string(pwd(), "/dat/pos/ind-loss.txt"),
     :unknown => "[UNK]",
     :paddingX => "[PAD_X]",
     :paddingY => "[PAD_Y]",
     :trainOutput => string(pwd(), "/dat/pos/ind-train.out"),
     :validOutput => string(pwd(), "/dat/pos/ind-test.out"),
     :testOutput => string(pwd(), "/dat/pos/ind-test.out"),
-    :columnFormat => true
+    :columnFormat => true,
+    :gpu => false
 )
 
 # For Vietnamese NER

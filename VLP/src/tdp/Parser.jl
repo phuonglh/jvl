@@ -1,6 +1,9 @@
+module DependencyParser
+
 using FLoops
 
-include("Classifier.jl")
+using .TransitionClassifier
+
 
 """
     run(options)
@@ -76,7 +79,7 @@ function evaluate(options)
     @time uas, las = evaluate(options, sentences)
     @info "Training scores: UAS = $uas, LAS = $las"
 
-    sentences = readCorpus(options[:devCorpus], options[:maxSequenceLength])
+    sentences = readCorpus(options[:validCorpus], options[:maxSequenceLength])
     @time uas, las = evaluate(options, sentences)
     @info "Development scores: UAS = $uas, LAS = $las"
 
@@ -84,3 +87,5 @@ function evaluate(options)
     @time uas, las = evaluate(options, sentences)
     @info "Test scores: UAS = $uas, LAS = $las"
 end
+
+end # module
