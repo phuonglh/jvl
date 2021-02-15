@@ -170,6 +170,30 @@ After training a classifier, the parser is run to parse or evaluate its accuracy
 - Number of test sentences: 511
 - Options: batch size = 32 
 
+### Transition Classification
+
+| embeddingSize |  hiddenUnits | trainingAcc | devAcc | testAcc | trainingTime |epochs |
+| ---:       | :---:   | :---:    | :---:    | :---:    | :---:  | :---: 
+| 50 |  32 | 0.8224 | 0.6039 | ? | 1,701 (s) Thinkpad | 8 |
+| 50 | 32 |  0.7952 | 0.6005 | ? | 1,493 (s) Thinkpad | 7 |
+| 50 |  64 | 0.8176 | 0.6120 | ? | 1,460 (s) Thinkpad | 7 |
+| 50 | 64 |  0.8099 | 0.6215 | ? | 1,277 (s) Thinkpad | 2 |
+| 50 | 128 | 0.8010 | 0.6039 | ? | 1,078 (s) Thinkpad | 7 |
+| 50 | 128 | 0.8169 | 0.6273 | ? | 820 (s) Thinkpad  | 2 |
+| 100 | 128 | 0.7601 | 0.5851 | ? | 3,591 (s) Thinkpad | 6 |
+
+
+### Parser Scores
+
 | embeddingSize |  hiddenUnits | trainingScores | devScores | testScores | trainingTime
 | ---:       | :---:   | :---:    | :---:    | :---:    | :---:    | 
 |  100 | 64 | 0.5557; 0.5050 | 0.4499; 0.3822 | 0.4568; 0.3891 | ? (s) MBP, 6 epochs 
+
+## 3.3. Vietnamese Accuracy
+
+
+### Transition Classification
+
+| embeddingSize |  hiddenUnits | trainingAcc | devAcc | testAcc | trainingTime
+| ---:       | :---:   | :---:    | :---:    | :---:    | :---:    | 
+|  50 | 64 | 0.8100 | 0.5703 | ? | 164 (s) Thinkpad, 9 epochs 
