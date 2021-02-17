@@ -18,7 +18,8 @@ using BangBang
 using MicroCollections
 
 
-include("Sentence.jl")
+using ..Corpus
+
 include("Embedding.jl")
 include("Options.jl")
 include("Utils.jl")

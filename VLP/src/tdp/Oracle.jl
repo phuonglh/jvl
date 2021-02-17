@@ -1,8 +1,8 @@
 using DataStructures
 
-include("../seq/Sentence.jl")
+include("../seq/Options.jl")
 include("../seq/Corpus.jl")
-
+using .Corpus
 
 struct Arc
     head::String

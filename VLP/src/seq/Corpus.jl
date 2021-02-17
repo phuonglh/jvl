@@ -1,7 +1,21 @@
+module Corpus
+
+export Token, Sentence, readCorpusUD, readCorpusCoNLL, readCorpusVLSP
+
 include("../tok/VietnameseTokenizer.jl")
-include("Sentence.jl")
 
 using .VietnameseTokenizer
+
+
+struct Token
+    word::String
+    annotation::Dict{Symbol,String}
+end
+
+struct Sentence
+    tokens::Array{Token}
+end
+
 
 
 """
@@ -108,3 +122,5 @@ function readCorpusVLSP(path::String, maxSentenceLength::Int=40)::Array{Sentence
     # filter sentences...
     filter(sentence -> length(sentence.tokens) <= maxSentenceLength, sentences)
 end
+
+end # module

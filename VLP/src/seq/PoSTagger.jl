@@ -14,7 +14,8 @@ using BSON: @save, @load
 
 using FLoops
 
-include("Sentence.jl")
+using ..Corpus
+
 include("Embedding.jl")
 include("Options.jl")
 include("Utils.jl")

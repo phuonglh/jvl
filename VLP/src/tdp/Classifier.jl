@@ -4,6 +4,8 @@
 
 module TransitionClassifier
 
+export load, evaluate
+
 using Flux
 using Flux: @epochs
 using BSON: @save, @load
@@ -11,7 +13,6 @@ using CUDA
 
 include("Oracle.jl")
 include("Embedding.jl")
-include("../seq/Options.jl")
 
 function model(options::Dict{Symbol,Any}, numLabels::Int)
     Chain(
@@ -218,16 +219,15 @@ function load(options::Dict{Symbol,Any})::Tuple{Chain,Dict{String,Int},Dict{Stri
 end
 
 """
-    evaluate(options, sentences)
+    evaluate(mlp, featureIndex, labelIndex, options, sentences)
 
     Evaluate the accuracy of the transition classifier.
 """
-function evaluate(options::Dict{Symbol,Any}, sentences::Array{Sentence})
+function evaluate(mlp, featureIndex, labelIndex, options::Dict{Symbol,Any}, sentences::Array{Sentence,1})
     contexts = collect(Iterators.flatten(map(sentence -> decode(sentence), sentences)))   
     @info "Number of sentences = $(length(sentences))"
     @info "Number of contexts  = $(length(contexts))"
 
-    mlp, featureIndex, labelIndex = load(options)
     Xs, Ys = batch(contexts, featureIndex, labelIndex, options)
     dataset = collect(zip(Xs, Ys))
     @info "numFeatures = ", options[:vocabSize]
@@ -242,7 +242,7 @@ function evaluate(options::Dict{Symbol,Any}, sentences::Array{Sentence})
     @info numMatches
     accuracy = numMatches/length(contexts)
     @info "accuracy = $accuracy"
-    mlp
+    accuracy
 end
 
 end # module 

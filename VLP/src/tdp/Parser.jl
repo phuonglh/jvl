@@ -1,19 +1,27 @@
 module DependencyParser
 
+using Flux
 using FLoops
 
+include("Classifier.jl")
 using .TransitionClassifier
+
+include("Oracle.jl")
+using .Corpus
+
+include("../tok/VietnameseTokenizer.jl")
+using .VietnameseTokenizer
+
 
 
 """
-    run(options)
+    run(mlp, featureIndex, labelIndex, options, sentences)
 
     Parse an array of sentences. A pre-trained transition classifier, its associated feature index and label index 
     will be loaded from saved files in advance. The input sentences are updated in-place by appending :h and :l annotations to 
     each token for head and dependency label predictions.
 """
-function run(options::Dict{Symbol,Any}, sentences::Array{Sentence})
-    mlp, featureIndex, labelIndex = load(options)
+function run(mlp, featureIndex, labelIndex, options::Dict{Symbol,Any}, sentences::Array{Sentence})
     # create (index => label) map
     labels = Dict{Int,String}(labelIndex[label] => label for label in keys(labelIndex))
     # parse the sentences in parallel to speed up the processing
@@ -47,12 +55,12 @@ function run(options::Dict{Symbol,Any}, sentences::Array{Sentence})
 end
 
 """
-    evaluate(options, sentences)
+    evaluate(mlp, featureIndex, labelIndex, options, sentences)
 
     Evaluate the accuracy of the parser: compute the UAS and LAS scores.
 """
-function evaluate(options::Dict{Symbol,Any}, sentences::Array{Sentence})::Tuple{Float64,Float64}
-    run(options, sentences)
+function evaluate(mlp, featureIndex, labelIndex, options::Dict{Symbol,Any}, sentences::Array{Sentence})::Tuple{Float64,Float64}
+    run(mlp, featureIndex, labelIndex, options, sentences)
     uas, las = 0, 0
     numTokens = 0
     for sentence in sentences
@@ -75,16 +83,20 @@ end
     Evaluate the performance of the parser on all train/dev./test datasets.
 """
 function evaluate(options)
-    sentences = readCorpus(options[:trainCorpus], options[:maxSequenceLength])
-    @time uas, las = evaluate(options, sentences)
+    mlp, featureIndex, labelIndex = TransitionClassifier.load(options)
+    sentences = readCorpusUD(options[:trainCorpus], options[:maxSequenceLength])
+    @time uas, las = evaluate(mlp, featureIndex, labelIndex, options, sentences)
+    @info length(sentences)
     @info "Training scores: UAS = $uas, LAS = $las"
 
-    sentences = readCorpus(options[:validCorpus], options[:maxSequenceLength])
-    @time uas, las = evaluate(options, sentences)
+    sentences = readCorpusUD(options[:validCorpus], options[:maxSequenceLength])
+    @time uas, las = evaluate(mlp, featureIndex, labelIndex, options, sentences)
+    @info length(sentences)
     @info "Development scores: UAS = $uas, LAS = $las"
 
-    sentences = readCorpus(options[:testCorpus], options[:maxSequenceLength])
-    @time uas, las = evaluate(options, sentences)
+    sentences = readCorpusUD(options[:testCorpus], options[:maxSequenceLength])
+    @time uas, las = evaluate(mlp, featureIndex, labelIndex, options, sentences)
+    @info length(sentences)
     @info "Test scores: UAS = $uas, LAS = $las"
 end
 
