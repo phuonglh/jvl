@@ -146,7 +146,7 @@ function train(options::Dict{Symbol,Any})
         sum(matches)/numContexts
     end
     evalcb = function()
-        devLoss = sum(loss(dataset[i]...) for i=1:length(datasetDev))
+        devLoss = sum(loss(datasetDev[i]...) for i=1:length(datasetDev))
         trainAccuracy = accuracy(Xs, Ys, length(contexts))
         devAccuracy = accuracy(XsDev, YsDev, length(contextsDev))
         @info "\tdevLoss = $devLoss, trainAccuracy=$trainAccuracy, devAccuracy=$devAccuracy"

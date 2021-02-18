@@ -17,8 +17,11 @@ using FLoops
 using BangBang
 using MicroCollections
 
+include("Corpus.jl")
+using .Corpus
 
-using ..Corpus
+include("../tok/VietnameseTokenizer.jl")
+using .VietnameseTokenizer
 
 include("Embedding.jl")
 include("Options.jl")
@@ -154,15 +157,34 @@ function train(options::Dict{Symbol,Any})
     optimizer = ADAM()
     file = open(options[:logPath], "w")
     write(file, "loss,trainingAccuracy,validationAccuracy\n")
-    evalcb = Flux.throttle(60) do
-        ℓ = loss(dataset[1]...)
+    evalcb = function()
+        ℓ = sum(loss(datasetValidation[i]...) for i=1:length(datasetValidation))
         trainingAccuracy = evaluate(encoder, Xs, Ys, options)
         validationAccuracy = evaluate(encoder, Us, Vs, options)
         @info string("loss = ", ℓ, ", training accuracy = ", trainingAccuracy, ", validation accuracy = ", validationAccuracy)
         write(file, string(ℓ, ',', trainingAccuracy, ',', validationAccuracy, "\n"))
     end
-    # train the model
-    @time @epochs options[:numEpochs] Flux.train!(loss, params(encoder), dataset, optimizer, cb = evalcb)
+    # train the model until the validation accuracy decreases 2 consecutive times
+    t = 1
+    k = 0
+    bestDevAccuracy = 0
+    @time while (t <= options[:numEpochs]) 
+        @info "Epoch $t, k = $k"
+        Flux.train!(loss, params(encoder), dataset, optimizer, cb = Flux.throttle(evalcb, 60))
+        devAccuracy = evaluate(encoder, Us, Vs, options)
+        if bestDevAccuracy < devAccuracy
+            bestDevAccuracy = devAccuracy
+            k = 0
+        else
+            k = k + 1
+            if (k == 3)
+                @info "Stop training because current accuracy is smaller than the best accuracy: $(devAccuracy) < $(bestDevAccuracy)."
+                break
+            end
+        end
+        @info "bestDevAccuracy = $bestDevAccuracy"
+        t = t + 1
+    end
     close(file)
     # save the model to a BSON file
     @save options[:modelPath] encoder

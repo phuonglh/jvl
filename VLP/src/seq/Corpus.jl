@@ -3,7 +3,6 @@ module Corpus
 export Token, Sentence, readCorpusUD, readCorpusCoNLL, readCorpusVLSP
 
 include("../tok/VietnameseTokenizer.jl")
-
 using .VietnameseTokenizer
 
 
@@ -15,8 +14,6 @@ end
 struct Sentence
     tokens::Array{Token}
 end
-
-
 
 """
     readCorpusUD(path, maxSentenceLength=40)
@@ -54,7 +51,8 @@ end
 
     Read a CoNLL-2003 file to build named-entity tagged sentences. The Bahasa Indonesia 
     corpus has 3 columns: word, part-of-speech, and NE tag; if reading this corpus, we 
-    need to set the last argument to true.
+    need to set the last argument to true to use the default chunk information "_" for all 
+    tokens.
 """
 function readCorpusCoNLL(path::String, threeColumns::Bool=false, maxSentenceLength::Int=40)::Array{Sentence}
     function createToken(line::String)::Token

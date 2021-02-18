@@ -84,7 +84,19 @@ Training data sets come from different sources:
 
 The resulting files will be saved to paths of `dat/ner/$lang-` where `lang` can be `eng`, `vie` or `ind`, etc. 
 
-To train a tagger, run the file `seq/NameTagger.jl`. Update the options if necessary. Then run the function `train(options)`, where `options` is the selected options for a language as described above. After training, run the function `evaluate(options)` to predict all train/dev./test corpus and save the results to corresponding output files. Finally, run the `conlleval` script on each output file to see the corresponding NER performance.
+To train a tagger, run the file `seq/NameTagger.jl`. Update the options if necessary. Then run the function `train(options)`, where `options` is the selected options for a language as described above. After training, run the function `evaluate(encoder, options)` to predict all train/dev./test corpus and save the results to corresponding output files. Finally, run the `conlleval` script on each output file to see the corresponding NER performance.
+
+```
+    cd jvl/VLP
+    julia
+    activate .
+    include("src/seq/NameTagger.jl")
+    options = NameTagger.options...
+    options[:wordSize] = 100
+    options[:hiddenUnits] = 128
+    encoder = NameTagger.train(options)
+    NameTagger.evaluate(encoder, options)
+```
 
 ## 2.2. Vietnamese VLSP-2016 Accuracy
 
