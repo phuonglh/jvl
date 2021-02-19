@@ -12,7 +12,7 @@ language = "vie" # ind/eng
 options = if language == "vie"
     TransitionClassifier.optionsVUD
 elseif language == "ind"
-    TransitionClassifier.optionsKIK2020
+    TransitionClassifier.optionsGSD
 else
     TransitionClassifier.optionsEWT
 end
@@ -24,7 +24,7 @@ sentences = TransitionClassifier.readCorpusUD(options[:trainCorpus])
 sentencesDev = TransitionClassifier.readCorpusUD(options[:validCorpus])
 sentencesTest = TransitionClassifier.readCorpusUD(options[:testCorpus])
 
-file = open(string(pwd(), "/dat/tdp/experiments.tsv"), "w")
+file = open(string(pwd(), "/dat/tdp/experiments-", language, ".tsv"), "w")
 write(file, "embeddingSize\thiddenSize\ttrainingAcc\tdevAcc\ttestAcc\trainingUAS\ttrainingLAS\tdevUAS\tdevLAS\ttestUAS\ttestLAS\n")
 numExperiments = 3
 for k = 1:numExperiments
