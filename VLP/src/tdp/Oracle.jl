@@ -4,6 +4,9 @@ include("../seq/Options.jl")
 include("../seq/Corpus.jl")
 using .Corpus
 
+include("../tok/VietnameseTokenizer.jl")
+using .VietnameseTokenizer
+
 struct Arc
     head::String
     dependent::String
@@ -21,6 +24,27 @@ struct Context
     transition::String
 end
 
+# phuonglh: A simple hack function to copy a stack. The library DataStructures does not provide 
+# this function by default (Feb., 2021)
+Base.copy(s::Stack) = begin
+    elements = collect(s.store)
+    s2 = Stack{eltype(s)}()
+    for e in elements
+        push!(s2, e)
+    end
+    return s2
+end
+
+# phuonglh: Another simple hack function to copy a queue. The library DataStructures does not provide 
+# this function by default (Feb., 2021)
+Base.copy(q::Queue) = begin
+    elements = collect(q.store)
+    q2 = Queue{eltype(q)}()
+    for e in elements
+        enqueue!(q2, e)
+    end
+    return q2
+end
 
 """
   reducible(config)
@@ -79,7 +103,7 @@ end
   Extract feature strings from a parsing `config`. The `tokenMap` contains a map of tokenId to token.
 
 """
-function featurize(config::Config, tokenMap::Dict{String,Token})::Array{String}
+function featurize(config::Config, tokenMap::Dict{String,Corpus.Token})::Array{String}
     features = []
     σ, β = config.stack, config.queue
     # top tokens of the stack and queue
@@ -137,7 +161,7 @@ end
 function decode(sentence::Sentence)::Array{Context}
     σ = Stack{String}()
     β = Queue{String}()
-    tokenMap = Dict{String,Token}(token.annotation[:id] => token for token in sentence.tokens)
+    tokenMap = Dict{String,Corpus.Token}(token.annotation[:id] => token for token in sentence.tokens)
     for id in map(token -> token.annotation[:id], sentence.tokens)
         enqueue!(β, id)
     end
@@ -165,9 +189,52 @@ function decode(sentence::Sentence)::Array{Context}
             transition = "SH"
         end
         # @info string(config, " => ", transition)
+        # since we extract feature strings from stack and buffer on the fly, we do not 
+        # need to copy them to speed up the process
         push!(contexts, Context(featurize(config, tokenMap), transition))
         config = next(config, transition)
     end
     contexts
 end
 
+"""
+    decodeExample(sentence)
+
+    Decode a graph to find its (config, transition) sequence, step by step. This is useful for 
+    examining/simulating the parsing process and build examples for writing a manuscript.
+"""
+function decodeExample(sentence::Sentence)
+    σ = Stack{String}()
+    β = Queue{String}()
+    tokenMap = Dict{String,Token}(token.annotation[:id] => token for token in sentence.tokens)
+    for id in map(token -> token.annotation[:id], sentence.tokens)
+        enqueue!(β, id)
+    end
+    A = Array{Arc,1}()
+    arcList = map(token -> ((token.annotation[:head], token.annotation[:id]), token.annotation[:label]), sentence.tokens)
+    arcMap = Dict{Tuple{String, String}, String}(arcList)
+
+    config = Config(σ, β, A)
+    steps = []
+    config = next(config, "SH")
+    transition = "SH"
+    while !isempty(β)
+        u, v = first(σ), first(β)
+        labelLeft = get(arcMap, (v, u), "NA")
+        labelRight = get(arcMap, (u, v), "NA")
+        if labelLeft != "NA" # has arc (v, u), extract a LA-label relation
+            push!(A, Arc(v, u, labelLeft))
+            transition = string("LA-", labelLeft)
+        elseif labelRight != "NA" # has arc (u, v), extract a RA-label relation
+            push!(A, Arc(u, v, labelRight))
+            transition = string("RA-", labelRight)
+        elseif reducible(config)
+            transition = "RE"
+        else
+            transition = "SH"
+        end
+        push!(steps, (Config(copy(σ), copy(β), copy(A)), transition))
+        config = next(config, transition)
+    end
+    steps
+end

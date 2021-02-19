@@ -9,11 +9,6 @@ using .TransitionClassifier
 include("Oracle.jl")
 using .Corpus
 
-include("../tok/VietnameseTokenizer.jl")
-using .VietnameseTokenizer
-
-
-
 """
     run(mlp, featureIndex, labelIndex, options, sentences)
 
@@ -28,7 +23,7 @@ function run(mlp, featureIndex, labelIndex, options::Dict{Symbol,Any}, sentences
     @floop ThreadedEx(basesize=length(sentences)÷options[:numCores]) for sentence in sentences
         σ = Stack{String}()
         β = Queue{String}()
-        tokenMap = Dict{String,Token}(token.annotation[:id] => token for token in sentence.tokens)
+        tokenMap = Dict{String,Corpus.Token}(token.annotation[:id] => token for token in sentence.tokens)
         for id in map(token -> token.annotation[:id], sentence.tokens)
             enqueue!(β, id)
         end
