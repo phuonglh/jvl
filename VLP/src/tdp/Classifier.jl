@@ -151,6 +151,7 @@ function train(options::Dict{Symbol,Any})
         devAccuracy = accuracy(XsDev, YsDev, length(contextsDev))
         @info "\tdevLoss = $devLoss, trainAccuracy=$trainAccuracy, devAccuracy=$devAccuracy"
         write(file, string(devLoss, ',', trainAccuracy, ',', devAccuracy, "\n"))
+        flush(file)
     end
     # train the model until the development accuracy decreases 2 consecutive times
     t = 1
@@ -158,7 +159,7 @@ function train(options::Dict{Symbol,Any})
     bestDevAccuracy = 0
     @time while (t <= options[:numEpochs]) 
         @info "Epoch $t, k = $k"
-        Flux.train!(loss, params(mlp), dataset, optimizer, cb = Flux.throttle(evalcb, 60))
+        Flux.train!(loss, params(mlp), dataset, optimizer, cb = Flux.throttle(evalcb, 120))
         devAccuracy = accuracy(XsDev, YsDev, length(contextsDev))
         if bestDevAccuracy < devAccuracy
             bestDevAccuracy = devAccuracy

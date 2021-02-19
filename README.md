@@ -168,11 +168,43 @@ The training stops when the accuracy on the validation corpus does not increase 
 
 The `tdp/Oracle.jl` utility extracts features from parsing configurations. Each parsing config has an associated stack, buffer and partial arc list. Two top tokens on the stack, two top tokens on the buffer are considered; each has 5 features. Each parsing configuration has thus 20 feature strings. 
 
-After training a classifier, the parser is run to parse or evaluate its accuracy on sets of sentences.
+```
+    cd jvl/VLP
+    julia
+    ]
+    activate .
+    include("src/tdp/Classifier.jl")
+    options = TransitionClassifier.optionsVUD
+    # change parameters before training:
+    options[:embeddingSize] = 100
+    options[:hiddenSize] = 64
+    mlp = TransitionClassifier.train(options)
+    # load graphs for evaluating:
+    using Flux
+    mlp, featureIndex, labelIndex = TransitionClassifier.load(options)
+    sentences = TransitionClassifier.readCorpusUD(options[:testCorpus])
+    TransitionClassifier.evaluate(mlp, featureIndex, labelIndex, options, sentences)
+```
+
+After training a classifier, invoke the parser to parse or evaluate its accuracy on sets of sentences.
 
 - `run(options, sentences)`: loads a classifier and run the parser on `sentences`, the given sentences are updated directly where each token has `:h` and `:l` annotation specifying its head and dependency label
 - `evaluate(options, sentences)`: evaluates parsing performance in terms of UAS (unlabeled attachment score) and LAS (labeled attachment score). 
 - `evaluate(options)`: loads training/dev./test data sets from the given `options` and evaluates parsing performance on these sets.
+
+```
+    cd jvl/VLP
+    julia
+    ]
+    activate .
+    include("src/tdp/Parser.jl")
+    options = DependencyParser.TransitionClassifier.optionsVUD
+    using Flux
+    mlp, featureIndex, labelIndex = TransitionClassifier.load(options)
+    sentences = DependencyParser.readCorpusUD(options[:testCorpus])
+    # DependencyParser.evaluate(mlp, featureIndex, labelIndex, options, sentences)
+    DependencyParser.evaluate(options)
+```
 
 
 ## 3.2. Bahasa Indonesia Accuracy
@@ -180,32 +212,34 @@ After training a classifier, the parser is run to parse or evaluate its accuracy
 - Number of training sentences: 4,4094 (with length not greater than 40), resulting in 135,155 training samples for transition classification;
 - Number of development sentences: 490 (15,757 validation samples)
 - Number of test sentences: 511
+- Number of depdendency labels: 
 - Options: batch size = 32 
 
-### Transition Classification
+| embeddingSize |  hiddenUnits | trainingAcc | devAcc | testAcc | trainingTime | epochs | trainUAS | trainLAS | devUAS | devLAS | testUAS | testLAS | 
+| ---:       | :---:   | :---:    | :---:    | :---:    | :---:  | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| 50 |  32 | 0.8224 | 0.6039 | ? | 1,701 (s) T480s | 8 | 0.5932 | 0.5432 | 0.4514 | 0.3822 | 0.4476 | 0.8331 |
+| 50 | 32 |  0.7952 | 0.6005 | ? | 1,493 (s) T480s | 7 |
+| 50 |  64 | 0.8176 | 0.6120 | ? | 1,460 (s) T480s | 7 |
+| 50 | 64 |  0.8099 | 0.6215 | ? | 1,277 (s) T480s | 2 |
+| 50 | 128 | 0.8010 | 0.6039 | ? | 1,078 (s) T480s | 7 |
+| 50 | 128 | 0.8169 | 0.6273 | ? | 820 (s) T480s  | 2 |
+| 100 | 128 | 0.7601 | 0.5851 | ? | 3,591 (s) T480s | 6 |
 
-| embeddingSize |  hiddenUnits | trainingAcc | devAcc | testAcc | trainingTime |epochs |
-| ---:       | :---:   | :---:    | :---:    | :---:    | :---:  | :---: 
-| 50 |  32 | 0.8224 | 0.6039 | ? | 1,701 (s) Thinkpad | 8 |
-| 50 | 32 |  0.7952 | 0.6005 | ? | 1,493 (s) Thinkpad | 7 |
-| 50 |  64 | 0.8176 | 0.6120 | ? | 1,460 (s) Thinkpad | 7 |
-| 50 | 64 |  0.8099 | 0.6215 | ? | 1,277 (s) Thinkpad | 2 |
-| 50 | 128 | 0.8010 | 0.6039 | ? | 1,078 (s) Thinkpad | 7 |
-| 50 | 128 | 0.8169 | 0.6273 | ? | 820 (s) Thinkpad  | 2 |
-| 100 | 128 | 0.7601 | 0.5851 | ? | 3,591 (s) Thinkpad | 6 |
-
-
-### Parser Scores
-
-| embeddingSize |  hiddenUnits | trainingScores | devScores | testScores | trainingTime
-| ---:       | :---:   | :---:    | :---:    | :---:    | :---:    | 
-|  100 | 64 | 0.5557; 0.5050 | 0.4499; 0.3822 | 0.4568; 0.3891 | ? (s) MBP, 6 epochs 
 
 ## 3.3. Vietnamese Accuracy
 
+- Number of training sentences: 1,400 (35,888 contexts)
+- Number of development sentences: 800 (20,321 contexts)
+- Number of test sentences: 800 (21,161)
+- Number of dependency labels: 52
 
-### Transition Classification
+| embeddingSize |  hiddenUnits | trainingAcc | devAcc | testAcc | trainingTime | epochs | trainUAS | trainLAS | devUAS | devLAS | testUAS | testLAS |
+| ---:       | :---:   | :---:    | :---:    | :---:    | :---:    | :---:    |   :---: | :---: |  :---: | :---: |  :---: | :---: |
+|  50 | 32 | 0.8118 | 0.5790 | 0.5652 | 312 (s) MBP | 10 | 0.5416 | 0.5154 | 0.3379 | 0.2804 | 0.3203 | 0.2595 | 
+|  50 | 64 | 0.8100 | 0.5703 | 0.5527 | 164 (s) T480s | 9 |
+|  50 | 128 | 0.8552 | 0.5820 | 0.5656 | 478 (s) MBP | 10 | 0.6473 | 0.5987 | 0.4099 | 0.3252 | 0.3929 | 0.3037 | 
+| 100 | 32  | 0.6120 | 0.4734 | 0.4606 | 952 (s) MBP | 11 | 0.3433 | 0.2163 | 0.2596 | 0.1515 | 0.2483 | 0.1336 | 
+| 100 | 64 | 0.7612 | 0.5480 | 0.5276 | 899 (s) MBP | 10 | 0.5821 | 0.4749 | 0.4078 | 0.2963 | 0.3853 | 0.2707 | 
+| 100 | 128 | 0.8309 | 0.5685 | 0.5514 | 1,204 (s) MBP | 13 | 0.6409 | 0.5907 | 0.3932 | 0.3127 | 0.3706 | 0.2851 | 
+| 100 | 256 | 0.7419 | 0.5492 | 0.5371 | 929 (s) MBP | 10 | 0.4135 | 0.3861 | 0.2699 | 0.2211 | 0.2627 | 0.2093 | 
 
-| embeddingSize |  hiddenUnits | trainingAcc | devAcc | testAcc | trainingTime
-| ---:       | :---:   | :---:    | :---:    | :---:    | :---:    | 
-|  50 | 64 | 0.8100 | 0.5703 | ? | 164 (s) Thinkpad, 9 epochs 

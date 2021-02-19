@@ -1,13 +1,18 @@
 module DependencyParser
 
+export TransitionClassifier
+
 using Flux
 using FLoops
+using DataStructures
 
 include("Classifier.jl")
 using .TransitionClassifier
-
-include("Oracle.jl")
-using .Corpus
+using .TransitionClassifier.Corpus
+import .TransitionClassifier.Arc
+import .TransitionClassifier.Config
+import .TransitionClassifier.next
+import .TransitionClassifier.featurize
 
 """
     run(mlp, featureIndex, labelIndex, options, sentences)
