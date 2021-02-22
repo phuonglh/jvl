@@ -1,7 +1,6 @@
 # Implementation of TransE method
 # phuonglh@gmail.com
-
-module TransE
+# December 2020
 
 using Flux
 using Flux: @epochs
@@ -13,11 +12,11 @@ Random.seed!(220712)
 include("Sampling.jl")
 include("EmbeddingWL.jl")
 
-opts = Dict{Symbol,Any}(
+optsVUD = Dict{Symbol,Any}(
     :vocabSize => 2^16,
     :embeddingSize => 16,
     :unknown => "[unk]",
-    :numEpochs => 20,
+    :numEpochs => 80,
     :wordPath => string(pwd(), "/dat/emb/vie-wv.txt"),
     :labelPath => string(pwd(), "/dat/emb/vie-lv.txt"),
 )
@@ -26,7 +25,7 @@ optsEWT = Dict{Symbol,Any}(
     :vocabSize => 2^16,
     :embeddingSize => 16,
     :unknown => "[unk]",
-    :numEpochs => 20,
+    :numEpochs => 80,
     :wordPath => string(pwd(), "/dat/emb/eng-wv.txt"),
     :labelPath => string(pwd(), "/dat/emb/eng-lv.txt"),
 )
@@ -35,16 +34,16 @@ optsGSD = Dict{Symbol,Any}(
     :vocabSize => 2^16,
     :embeddingSize => 16,
     :unknown => "[unk]",
-    :numEpochs => 20,
+    :numEpochs => 80,
     :wordPath => string(pwd(), "/dat/emb/ind-wv.txt"),
     :labelPath => string(pwd(), "/dat/emb/ind-lv.txt"),
 )
 
 # change this line for different language
-language = "ind"
+language = "vie" # ind/eng
 
 (optsTransE, optionsUD) = if (language == "vie")
-    (opts, options)
+    (optsVUD, optionsVUD)
 elseif language == "eng"
     (optsEWT, optionsEWT)
 elseif language == "ind"
@@ -153,5 +152,3 @@ for label in labels
     write(file, string(label, " ", join(v, " "), "\n"))
 end
 close(file)
-
-end # module

@@ -4,8 +4,9 @@
 # These triples are written to a file, each line begins with a head, a \t character, 
 # and a set of all tail/label relation separated by the space character.
 
-include("../seq/Sentence.jl")
 include("../seq/Corpus.jl")
+using .Corpus
+
 include("../seq/Options.jl")
 
 struct Triplet
@@ -17,7 +18,7 @@ end
 """
     extractTriplets(options)
 
-    Extracts all triplets from the training set, return a list of words (vocabulary) and a set of triplets.
+    Extracts all triplets from a training set, return a list of words (vocabulary) and a set of triplets.
 """
 function extractTriplets(options)::Tuple{Array{String},Set{Triplet}}
     sentences = readCorpusUD(options[:trainCorpus], options[:maxSequenceLength])
