@@ -66,7 +66,8 @@ optionsVUD = Dict{Symbol,Any}(
     :validOutput => string(pwd(), "/dat/pos/vie-test.out"),
     :testOutput => string(pwd(), "/dat/pos/vie-test.out"),
     :columnFormat => true,
-    :gpu => false
+    :gpu => false,
+    :concat => true
 )
 
 # For English PoS tagging and dependency parsing on the English Web Treebank
@@ -105,7 +106,8 @@ optionsEWT = Dict{Symbol,Any}(
     :validOutput => string(pwd(), "/dat/pos/eng-test.out"),
     :testOutput => string(pwd(), "/dat/pos/eng-test.out"),
     :columnFormat => true,
-    :gpu => false
+    :gpu => false,
+    :concat => true
 )
 
 # For Bahasa Indonesia PoS tagging and dependency parsing on the GSD treebank
@@ -144,7 +146,8 @@ optionsGSD = Dict{Symbol,Any}(
     :validOutput => string(pwd(), "/dat/pos/ind-test.out"),
     :testOutput => string(pwd(), "/dat/pos/ind-test.out"),
     :columnFormat => true,
-    :gpu => false
+    :gpu => false,
+    :concat => true
 )
 
 # For Vietnamese NER

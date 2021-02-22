@@ -13,13 +13,23 @@ using CUDA
 
 include("Oracle.jl")
 include("Embedding.jl")
+include("EmbeddingConcat.jl")
+
 
 function model(options::Dict{Symbol,Any}, numLabels::Int)
-    Chain(
-        Embedding(options[:vocabSize], options[:embeddingSize]),
-        Dense(options[:embeddingSize], options[:hiddenSize], σ),
-        Dense(options[:hiddenSize], numLabels)
-    )
+    if options[:concat]
+        Chain(
+            EmbeddingConcat(options[:vocabSize], options[:embeddingSize]),
+            Dense(options[:featuresPerContext] * options[:embeddingSize], options[:hiddenSize], σ),
+            Dense(options[:hiddenSize], numLabels)
+        )
+    else # sum (aka, continuous bag-of-features or CBOW model)
+        Chain(
+            Embedding(options[:vocabSize], options[:embeddingSize]),
+            Dense(options[:embeddingSize], options[:hiddenSize], σ),
+            Dense(options[:hiddenSize], numLabels)
+        )
+    end
 end 
 
 """
