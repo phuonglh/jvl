@@ -20,8 +20,7 @@ EmbeddingConcat(inp::Int, out::Int) = EmbeddingConcat(rand(Float32, out, inp))
     # if x is a matrix, A is then a 3-d tensor
     A = f.W[:, x] 
     # concatenate all columns of matrix A[:, :, i]
-    xs = [vcat(A[:,:,i]...) for i=1:size(x,2)] 
-    return hcat(xs...)
+    hcat((vcat(A[:,:,i]...) for i=1:size(x,2))...)
 end
 
 # make the embedding layer trainable
