@@ -5,6 +5,7 @@
 =#
 
 using Flux
+using Flux: @adjoint
 
 # Each embedding layer contains a matrix of all word vectors, 
 # each column is the vector of the corresponding word index.
@@ -16,12 +17,13 @@ EmbeddingConcat(inp::Int, out::Int) = EmbeddingConcat(rand(Float32, out, inp))
 
 # overload call, so the object can be used as a function
 # x is a word index or an array, or a matrix
-(f::EmbeddingConcat)(x) = begin
-    # if x is a matrix, A is then a 3-d tensor
-    A = f.W[:, x] 
-    # concatenate all columns of matrix A[:, :, i]
-    hcat((vcat(A[:,:,i]...) for i=1:size(x,2))...)
-end
+(f::EmbeddingConcat)(x) = hcat([vcat([f.W[:,x[i,t]] for i=1:size(x,1)]...) for t=1:size(x,2)]...)
+
+# A = f.W[:,x]
+# bs = [vcat(A[:,:,i]...) for i=1:size(A,3)]
+# hcat(bs...)
+# overload the EmbeddingConcat constructor for back-propagation to work
+# @adjoint EmbeddingConcat(W) = EmbeddingConcat(W), df -> (df.W,)
 
 # make the embedding layer trainable
 Flux.@functor EmbeddingConcat
