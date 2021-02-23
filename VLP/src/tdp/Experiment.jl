@@ -17,14 +17,15 @@ else
     TransitionClassifier.optionsEWT
 end
 
-embeddingSizes = [25, 50, 75, 100]
+# embeddingSizes = [25, 50, 75, 100] # for CBOW  => -bof.tsv
+embeddingSizes = [5, 10, 15, 20] # for concatenation (20 * embeddingSize) => -sof.tsv
 hiddenSizes = [32, 64, 128, 256, 300]
 
 sentences = TransitionClassifier.readCorpusUD(options[:trainCorpus])
 sentencesDev = TransitionClassifier.readCorpusUD(options[:validCorpus])
 sentencesTest = TransitionClassifier.readCorpusUD(options[:testCorpus])
 
-file = open(string(pwd(), "/dat/tdp/experiments-", language, ".tsv"), "w")
+file = open(string(pwd(), "/dat/tdp/experiments-", language, "-sof.tsv"), "w")
 write(file, "embeddingSize\thiddenSize\ttrainingAcc\tdevAcc\ttestAcc\trainingUAS\ttrainingLAS\tdevUAS\tdevLAS\ttestUAS\ttestLAS\n")
 numExperiments = 3
 for k = 1:numExperiments
