@@ -206,7 +206,7 @@ end
 function decodeExample(sentence::Sentence)
     σ = Stack{String}()
     β = Queue{String}()
-    tokenMap = Dict{String,Token}(token.annotation[:id] => token for token in sentence.tokens)
+    tokenMap = Dict{String,Corpus.Token}(token.annotation[:id] => token for token in sentence.tokens)
     for id in map(token -> token.annotation[:id], sentence.tokens)
         enqueue!(β, id)
     end
