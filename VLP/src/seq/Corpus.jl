@@ -23,7 +23,7 @@ end
 function readCorpusUD(path::String, maxSentenceLength::Int=40)::Array{Sentence}
     lines = filter(line -> !startswith(line, "#"), readlines(path))
     append!(lines, [""])
-    sentences = []
+    sentences = Array{Sentence,1}()
     tokens = []
     for line in lines
         parts = split(strip(line), r"\t+")
@@ -65,7 +65,7 @@ function readCorpusCoNLL(path::String, threeColumns::Bool=false, maxSentenceLeng
         Token(parts[1], annotation)
     end
 
-    sentences = []
+    sentences = Array{Sentence,1}()
     lines = readlines(path)
     n = length(lines)
     indexedLines = collect(zip(1:n, map(line -> strip(line), lines)))
@@ -89,7 +89,7 @@ end
     Read VLSP-2010 corpus for part-of-speech tagging
 """
 function readCorpusVLSP(path::String, maxSentenceLength::Int=40)::Array{Sentence}
-    sentences = Sentence[]
+    sentences = Array{Sentence,1}()
     lines = readlines(path)
     for line in lines
         wts = string.(split(strip(line), r"[\s]+"))
