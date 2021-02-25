@@ -6,9 +6,11 @@ using JSON3
 using JSONTables
 using DataFrames
 using Statistics
-
+using Flux
 
 include("Parser.jl")
+
+using .ArcEagerParser.TransitionClassifier
 
 """
     experiment(options, times=3)
@@ -22,21 +24,21 @@ function experiment(options, times=3)
     else
         open(scorePath, "w")
     end
-
-    # Vietnamese
+    sentencesTrain = TransitionClassifier.readCorpusUD(options[:trainCorpus], options[:maxSequenceLength])
+    sentencesDev = TransitionClassifier.readCorpusUD(options[:validCorpus], options[:maxSequenceLength])
+    sentencesTest = TransitionClassifier.readCorpusUD(options[:testCorpus], options[:maxSequenceLength])
+    
     for t = 1:times
         local elapsedTime = time_ns()
-        train(options)
+        TransitionClassifier.train(options)
         elapsedTime = time_ns() - elapsedTime
-        sentencesTrain = readCorpus(options[:trainCorpus], options[:maxSequenceLength])
-        sentencesDev = readCorpus(options[:devCorpus], options[:maxSequenceLength])
-        sentencesTest = readCorpus(options[:testCorpus], options[:maxSequenceLength])
-        accuracyTrain = eval(options, sentencesTrain)
-        accuracyDev = eval(options, sentencesDev)
-        accuracyTest = eval(options, sentencesTest)
-        trainingUAS, trainingLAS = evaluate(options, sentencesTrain)
-        devUAS, devLAS = evaluate(options, sentencesDev)
-        testUAS, testLAS = evaluate(options, sentencesTest)
+        mlp, wordIndex, shapeIndex, posIndex, labelIndex = TransitionClassifier.load(options)
+        accuracyTrain = TransitionClassifier.evaluate(mlp, wordIndex, shapeIndex, posIndex, labelIndex, options, sentencesTrain)
+        accuracyDev = TransitionClassifier.evaluate(mlp, wordIndex, shapeIndex, posIndex, labelIndex, options, sentencesDev)
+        accuracyTest = TransitionClassifier.evaluate(mlp, wordIndex, shapeIndex, posIndex, labelIndex, options, sentencesTest)
+        trainingUAS, trainingLAS = ArcEagerParser.evaluate(mlp, wordIndex, shapeIndex, posIndex, labelIndex, options, sentencesTrain)
+        devUAS, devLAS = ArcEagerParser.evaluate(mlp, wordIndex, shapeIndex, posIndex, labelIndex, options, sentencesDev)
+        testUAS, testLAS = ArcEagerParser.evaluate(mlp, wordIndex, shapeIndex, posIndex, labelIndex, options, sentencesTest)
         local scores = Dict{Symbol,Any}(
             :trainCorpus => options[:trainCorpus],
             :minFreq => options[:minFreq],

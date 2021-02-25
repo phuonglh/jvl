@@ -122,10 +122,7 @@ end
 """
 function evaluate(options, sentences::Array{Sentence})
     mlp, wordIndex, shapeIndex, posIndex, labelIndex = load(options)
-    Xs, Ys = batch(sentences, wordIndex, shapeIndex, posIndex, labelIndex, options)
-    accuracy = evaluate(mlp, Xs, Ys)
-    @info "accuracy = $(accuracy)"
-    return accuracy
+    evaluate(mlp, wordIndex, shapeIndex, posIndex, labelIndex, sentences, options)
 end
 
 """
@@ -140,6 +137,13 @@ function evaluate(mlp, Xs, Ys)
     matches = map(p -> sum(p[1] .== p[2]), pairs)
     numSamples = sum(map(y -> length(y), Yb))
     accuracy = sum(matches)/numSamples
+    return accuracy
+end
+
+function evaluate(mlp, wordIndex, shapeIndex, posIndex, labelIndex, options, sentences)
+    Xs, Ys = batch(sentences, wordIndex, shapeIndex, posIndex, labelIndex, options)
+    accuracy = evaluate(mlp, Xs, Ys)
+    @info "accuracy = $(accuracy)"
     return accuracy
 end
 
@@ -178,7 +182,7 @@ function train(options)
             GRU(options[:wordSize] + options[:shapeSize] + options[:posSize], options[:embeddingSize])
             # GRU(options[:embeddingSize], options[:embeddingSize])
         ),
-        Dense(options[:featuresPerContext] * options[:embeddingSize], options[:hiddenSize], tanh),
+        Dense(options[:featuresPerContext] * options[:embeddingSize], options[:hiddenSize], σ),
         Dense(options[:hiddenSize], length(labelIndex))
     )
     # save an index to an external file
@@ -206,7 +210,7 @@ function train(options)
     @info "Total weight of initial word embeddings = $(sum(mlp[1].fs[1].word.W))"
 
     # build development dataset
-    sentencesDev = Corpus.readCorpusUD(options[:devCorpus], options[:maxSequenceLength])
+    sentencesDev = Corpus.readCorpusUD(options[:validCorpus], options[:maxSequenceLength])
     @info "#(sentencesDev) = $(length(sentencesDev))"
     contextsDev = collect(Iterators.flatten(map(sentence -> decode(sentence), sentencesDev)))
     @info "#(contextsDev) = $(length(contextsDev))"

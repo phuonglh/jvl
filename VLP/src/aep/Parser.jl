@@ -1,6 +1,20 @@
+module ArcEagerParser
+
+export TransitionClassifier
+
 using FLoops
+using Flux
+using DataStructures
 
 include("Classifier.jl")
+
+using .TransitionClassifier
+using .TransitionClassifier.Corpus
+import .TransitionClassifier.Arc
+import .TransitionClassifier.Config
+import .TransitionClassifier.next
+import .TransitionClassifier.vectorizeSentence
+
 
 """
     run(options)
@@ -10,7 +24,11 @@ include("Classifier.jl")
     each token for head and dependency label predictions.
 """
 function run(options::Dict{Symbol,Any}, sentences::Array{Sentence})
-    mlp, wordIndex, shapeIndex, posIndex, labelIndex = load(options)
+    mlp, wordIndex, shapeIndex, posIndex, labelIndex = TransitionClassifier.load(options)
+    run(mlp, wordIndex, shapeIndex, posIndex, labelIndex, options, sentences)
+end    
+
+function run(mlp, wordIndex, shapeIndex, posIndex, labelIndex, options::Dict{Symbol,Any}, sentences::Array{Sentence})
     # create (index => label) map
     labels = Dict{Int,String}(labelIndex[label] => label for label in keys(labelIndex))
     # parse the sentences in parallel to speed up the processing
@@ -31,7 +49,7 @@ function run(options::Dict{Symbol,Any}, sentences::Array{Sentence})
         append!(words, [options[:padding]])
         positionIndex = Dict{String,Int}(word => i for (i, word) in enumerate(words))
         # convert sentence to a 3 x maxSequenceLength integer matrix
-        ws = vectorizeSentence(sentence, wordIndex, shapeIndex, posIndex)
+        ws = vectorizeSentence(sentence, wordIndex, shapeIndex, posIndex, options)
         as = Flux.batch(ws)
         # the greedy parsing loop
         while !isempty(β) && !isempty(σ)
@@ -74,7 +92,12 @@ end
     Evaluate the accuracy of the parser: compute the UAS and LAS scores.
 """
 function evaluate(options::Dict{Symbol,Any}, sentences::Array{Sentence})::Tuple{Float64,Float64}
-    run(options, sentences)
+    mlp, wordIndex, shapeIndex, posIndex, labelIndex = TransitionClassifier.load(options)
+    evaluate(mlp, wordIndex, shapeIndex, posIndex, labelIndex, options, sentences)
+end
+
+function evaluate(mlp, wordIndex, shapeIndex, posIndex, labelIndex, options::Dict{Symbol,Any}, sentences::Array{Sentence})::Tuple{Float64,Float64}
+    run(mlp, wordIndex, shapeIndex, posIndex, labelIndex, options, sentences)
     uas, las = 0, 0
     numTokens = 0
     for sentence in sentences
@@ -97,15 +120,17 @@ end
     Evaluate the performance of the parser on all train/dev./test datasets.
 """
 function evaluate(options)
-    sentences = readCorpus(options[:trainCorpus], options[:maxSequenceLength])
+    sentences = readCorpusUD(options[:trainCorpus], options[:maxSequenceLength])
     @time uas, las = evaluate(options, sentences)
     @info "Training scores: UAS = $uas, LAS = $las"
 
-    sentences = readCorpus(options[:devCorpus], options[:maxSequenceLength])
+    sentences = readCorpusUD(options[:validCorpus], options[:maxSequenceLength])
     @time uas, las = evaluate(options, sentences)
     @info "Development scores: UAS = $uas, LAS = $las"
 
-    sentences = readCorpus(options[:testCorpus], options[:maxSequenceLength])
+    sentences = readCorpusUD(options[:testCorpus], options[:maxSequenceLength])
     @time uas, las = evaluate(options, sentences)
     @info "Test scores: UAS = $uas, LAS = $las"
 end
+
+end # module

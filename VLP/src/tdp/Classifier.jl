@@ -234,7 +234,7 @@ end
 
     Evaluate the accuracy of the transition classifier.
 """
-function evaluate(mlp, featureIndex, labelIndex, options::Dict{Symbol,Any}, sentences::Array{Sentence,1})
+function evaluate(mlp, featureIndex, labelIndex, options::Dict{Symbol,Any}, sentences::Array{Sentence})
     contexts = collect(Iterators.flatten(map(sentence -> decode(sentence), sentences)))   
     @info "Number of sentences = $(length(sentences))"
     @info "Number of contexts  = $(length(contexts))"
