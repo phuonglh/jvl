@@ -5,6 +5,7 @@
 using JSON3
 using JSONTables
 using DataFrames
+using CSV
 
 """
     aep(language)
@@ -26,7 +27,7 @@ function aep(language::String="vie")::DataFrame
     )
 end
 
-function analyze(df::DataFrame)
+function analyzeAEP(df::DataFrame)
     # group by embedding size (:e) and compute averages
     gf = groupby(df, :e)
     # ff = combine(gf, :t => mean, :d => mean, :a => mean, :tu => mean, :tl => mean, :du => mean, :dl => mean, :u => mean, :l => mean)
@@ -34,4 +35,22 @@ function analyze(df::DataFrame)
     # group by two columns
     hf = groupby(df, [:e, :w])
     kf = combine(hf, valuecols(hf) .=> mean)
+end
+
+function tdp(language::String="vie", arch::String="bof")::DataFrame
+    path = string("dat/tdp/experiments-", language, "-", arch, ".tsv")
+    df = DataFrame(CSV.File(path))
+    ef = select(df, 
+        :embeddingSize => (x -> Int.(x)) => :e, 
+        :hiddenSize => (x -> Int.(x)) => :h,
+        :trainingAcc => :t, :devAcc => :d, :testAcc => :a,
+        :trainingUAS => :tu, :devUAS => :du, :testUAS => :u,
+        :trainingLAS => :tl, :devLAS => :dl, :testLAS => :l,
+    )
+end
+
+function analyseTDP(df::DataFrame)
+    # group by embedding size (:e) and hidden size (:h)
+    hf = groupby(df, [:e, :h])
+    ff = combine(hf, valuecols(hf) .=> mean)
 end

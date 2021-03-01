@@ -26,7 +26,7 @@ sentencesDev = TransitionClassifier.readCorpusUD(options[:validCorpus])
 sentencesTest = TransitionClassifier.readCorpusUD(options[:testCorpus])
 
 file = open(string(pwd(), "/dat/tdp/experiments-", language, "-sof.tsv"), "w")
-write(file, "embeddingSize\thiddenSize\ttrainingAcc\tdevAcc\ttestAcc\trainingUAS\ttrainingLAS\tdevUAS\tdevLAS\ttestUAS\ttestLAS\n")
+write(file, "embeddingSize\thiddenSize\ttrainingAcc\tdevAcc\ttestAcc\ttrainingUAS\ttrainingLAS\tdevUAS\tdevLAS\ttestUAS\ttestLAS\n")
 numExperiments = 3
 for k = 1:numExperiments
     for e in embeddingSizes
