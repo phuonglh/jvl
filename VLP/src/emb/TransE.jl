@@ -16,7 +16,7 @@ optsVUD = Dict{Symbol,Any}(
     :vocabSize => 2^16,
     :embeddingSize => 16,
     :unknown => "[unk]",
-    :numEpochs => 80,
+    :numEpochs => 100,
     :wordPath => string(pwd(), "/dat/emb/vie-wv.txt"),
     :labelPath => string(pwd(), "/dat/emb/vie-lv.txt"),
 )
@@ -25,7 +25,7 @@ optsEWT = Dict{Symbol,Any}(
     :vocabSize => 2^16,
     :embeddingSize => 16,
     :unknown => "[unk]",
-    :numEpochs => 80,
+    :numEpochs => 100,
     :wordPath => string(pwd(), "/dat/emb/eng-wv.txt"),
     :labelPath => string(pwd(), "/dat/emb/eng-lv.txt"),
 )
@@ -34,7 +34,7 @@ optsGSD = Dict{Symbol,Any}(
     :vocabSize => 2^16,
     :embeddingSize => 16,
     :unknown => "[unk]",
-    :numEpochs => 80,
+    :numEpochs => 100,
     :wordPath => string(pwd(), "/dat/emb/ind-wv.txt"),
     :labelPath => string(pwd(), "/dat/emb/ind-lv.txt"),
 )

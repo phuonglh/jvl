@@ -12,7 +12,8 @@ struct Embedding
     W
 end
 
-Embedding(inp::Int, out::Int) = Embedding(rand(Float32, out, inp))
+# initialize random weights in the range [-6/sqrt(out), 6/sqrt(out)]
+Embedding(inp::Int, out::Int) = Embedding(-6/sqrt(out) .+ rand(Float32, out, inp) .* (12/sqrt(out)))
 
 # overload call, so the object can be used as a function
 # x is a word index or an array, or a matrix (a batch of column vectors) of word indices (1 <= x < vocabSize)
