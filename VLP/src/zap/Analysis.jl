@@ -52,5 +52,5 @@ end
 function analyseTDP(df::DataFrame)
     # group by embedding size (:e) and hidden size (:h)
     hf = groupby(df, [:e, :h])
-    ff = combine(hf, valuecols(hf) .=> mean)
+    ff = combine(hf, valuecols(hf) .=> (x -> round.(mean(x), digits=4)))
 end
