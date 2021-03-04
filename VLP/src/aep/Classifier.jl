@@ -11,6 +11,7 @@ include("EmbeddingWSP.jl")
 include("Join.jl")
 include("../tdp/Oracle.jl")
 include("Options.jl")
+include("../seq/BiRNN.jl")
 
 using .Corpus
 
@@ -179,7 +180,8 @@ function train(options)
     mlp = Chain(
         Join(
             EmbeddingWSP(vocabSize, options[:wordSize], length(shapeIndex), options[:shapeSize], length(posIndex), options[:posSize]),
-            GRU(options[:wordSize] + options[:shapeSize] + options[:posSize], options[:embeddingSize])
+            # GRU(options[:wordSize] + options[:shapeSize] + options[:posSize], options[:embeddingSize])
+            BiGRU(options[:wordSize] + options[:shapeSize] + options[:posSize], options[:embeddingSize])
             # GRU(options[:embeddingSize], options[:embeddingSize])
         ),
         Dense(options[:featuresPerContext] * options[:embeddingSize], options[:hiddenSize], σ),

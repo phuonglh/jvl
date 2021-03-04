@@ -26,7 +26,7 @@ optionsVUD = Dict{Symbol,Any}(
     :verbose => false,
     :gpu => false,
     :logPath => string(pwd(), "/dat/aep/vie-loss.txt"),
-    :scorePath => string(pwd(), "/dat/aep/vie-score.jsonl"),
+    :scorePath => string(pwd(), "/dat/aep/vie-score-BiGRU.jsonl"),
     :unknown => "[unk]",
     :padding => "[pad]"
 )
@@ -58,7 +58,7 @@ optionsEWT = Dict{Symbol,Any}(
     :verbose => false,
     :gpu => false,
     :logPath => string(pwd(), "/dat/aep/eng-loss.txt"),
-    :scorePath => string(pwd(), "/dat/aep/eng-score.jsonl"),
+    :scorePath => string(pwd(), "/dat/aep/eng-score-BiGRU.jsonl"),
     :unknown => "[unk]",
     :padding => "[pad]"
 )
@@ -90,7 +90,7 @@ optionsGSD = Dict{Symbol,Any}(
     :verbose => false,
     :gpu => false,
     :logPath => string(pwd(), "/dat/aep/ind-loss.txt"),
-    :scorePath => string(pwd(), "/dat/aep/ind-score.jsonl"),
+    :scorePath => string(pwd(), "/dat/aep/ind-score-BiGRU.jsonl"),
     :unknown => "[unk]",
     :padding => "[pad]"
 )
