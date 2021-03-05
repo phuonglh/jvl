@@ -1,6 +1,6 @@
 # phuonglh@gmail.com, December 2020.
 
-module TransitionClassifier
+module TransitionClassifierEx
 
 using Flux
 using Flux: @epochs
@@ -82,7 +82,7 @@ end
     Vectorize a training sentence. An oracle is used to extract (context, transition) pairs from 
     the sentence. Then each context is vectorized to a tuple of (token matrix of the sentence, word id array of the context).
     The word id array of the sentence is the same across all contexts. This function returns an array of pairs (xs, ys) where 
-    each xs is a pair (w, x). Each token matrix is a 3-row matrix corresponding to the word id, shape id, and part-of-speech id arrays.
+    each xs is a triple (w, x, t). Each token matrix is a 3-row matrix corresponding to the word id, shape id, and part-of-speech id arrays.
 """
 function vectorize(sentence::Sentence, wordIndex::Dict{String,Int}, shapeIndex::Dict{String,Int}, posIndex::Dict{String,Int}, labelIndex::Dict{String,Int}, options)
     ws = vectorizeSentence(sentence, wordIndex, shapeIndex, posIndex, options)
@@ -92,11 +92,12 @@ function vectorize(sentence::Sentence, wordIndex::Dict{String,Int}, shapeIndex::
     append!(words, [options[:padding]])
     positionIndex = Dict{String,Int}(word => i for (i, word) in enumerate(words))
     xs = map(f -> map(word -> positionIndex[lowercase(word)], f), fs)
+    ts = map(f -> map(word -> get(wordIndex, lowercase(word), wordIndex[options[:unknown]]), f), fs)
     ys = map(context -> labelIndex[context.transition], contexts)
     # return a collection of tuples for this sentence, use Flux.batch to convert ws to a matrix of size 3 x (maxSequenceLength+1).
     # and xs to a matrix of size 4 x numberOfContexts
     # convert each output batch to an one-hot matrix of size (numLabels x numberOfContexts)
-    ((Flux.batch(ws), Flux.batch(xs)), Flux.onehotbatch(ys, 1:length(labelIndex)))
+    ((Flux.batch(ws), Flux.batch(xs), Flux.batch(ts)), Flux.onehotbatch(ys, 1:length(labelIndex)))
 end
 
 """
@@ -177,14 +178,30 @@ function train(options)
     @info size(Xs[1][1][1]), size(Xs[1][1][2])
     @info size(Ys[1][1])
 
+    # build the embedding matrix W of pretrained TransE embeddings
+    lines = readlines(options[:extendedEmbeddingPath])
+    W = zeros(options[:extendedEmbeddingSize], length(lines))
+    for line in lines
+        parts = split(line, ' ')
+        word = replace(parts[1], "_" => ' ')
+        vector = parse.(Float32, parts[2:end])
+        W[:, get(wordIndex, word, wordIndex[options[:unknown]])] = vector
+    end
+    embeddingTransE = PretrainedEmbedding(W)
+    @info size(W)
+    @info "sum(W) = $(sum(embeddingTransE.W))"
+
     mlp = Chain(
-        Join(
-            EmbeddingWSP(vocabSize, options[:wordSize], length(shapeIndex), options[:shapeSize], length(posIndex), options[:posSize]),
-            # GRU(options[:wordSize] + options[:shapeSize] + options[:posSize], options[:embeddingSize])
-            BiGRU(options[:wordSize] + options[:shapeSize] + options[:posSize], options[:embeddingSize])
-            # GRU(options[:embeddingSize], options[:embeddingSize])
+        ConcatLayer(
+            Join(
+                EmbeddingWSP(vocabSize, options[:wordSize], length(shapeIndex), options[:shapeSize], length(posIndex), options[:posSize]),
+                # GRU(options[:wordSize] + options[:shapeSize] + options[:posSize], options[:embeddingSize])
+                BiGRU(options[:wordSize] + options[:shapeSize] + options[:posSize], options[:embeddingSize])
+                # GRU(options[:embeddingSize], options[:embeddingSize])
+            ),
+            embeddingTransE
         ),
-        Dense(options[:featuresPerContext] * options[:embeddingSize], options[:hiddenSize], σ),
+        Dense(options[:featuresPerContext] * (options[:embeddingSize] + options[:extendedEmbeddingSize]), options[:hiddenSize], σ),
         Dense(options[:hiddenSize], length(labelIndex))
     )
     # save an index to an external file
@@ -209,7 +226,7 @@ function train(options)
     # @info typeof(dataset[1][1]), size(dataset[1][1])
     # @info typeof(dataset[1][2]), size(dataset[1][2])
 
-    @info "Total weight of initial word embeddings = $(sum(mlp[1].fs[1].word.W))"
+    @info "Total weight of initial word embeddings = $(sum(mlp[1].join.fs[1].word.W))"
 
     # build development dataset
     sentencesDev = Corpus.readCorpusUD(options[:validCorpus], options[:maxSequenceLength])
@@ -263,7 +280,8 @@ function train(options)
         t = t + 1
     end
     close(file)
-    @info "Total weight of final word embeddings = $(sum(mlp[1].fs[1].word.W))"
+    @info "Total weight of final word embeddings = $(sum(mlp[1].join.fs[1].word.W))"
+    @info "Total weight of final TransE embeddings = $(sum(embeddingTransE.W))"
 
     # evaluate the model on the training set
     @info "Evaluating the model..."

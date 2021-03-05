@@ -13,7 +13,7 @@ using CSV
     Read experimental results of the AEP module into a data frame.
 """
 function aep(language::String="vie")::DataFrame
-    path = string("dat/aep/", language, "-score.jsonl")
+    path = string("dat/aep/", language, "-score-BiGRU.jsonl")
     xs = readlines(path)
     s = string("[", join(xs, ","), "]");
     jt = jsontable(s)
@@ -52,5 +52,5 @@ end
 function analyseTDP(df::DataFrame)
     # group by embedding size (:e) and hidden size (:h)
     hf = groupby(df, [:e, :h])
-    ff = combine(hf, valuecols(hf) .=> (x -> round.(mean(x), digits=4)))
+    ff = combine(hf, valuecols(hf) .=> (x -> round.(mean(x)*100, digits=2)))
 end

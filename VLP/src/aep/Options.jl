@@ -28,7 +28,9 @@ optionsVUD = Dict{Symbol,Any}(
     :logPath => string(pwd(), "/dat/aep/vie-loss.txt"),
     :scorePath => string(pwd(), "/dat/aep/vie-score-BiGRU.jsonl"),
     :unknown => "[unk]",
-    :padding => "[pad]"
+    :padding => "[pad]",
+    :extendedEmbeddingPath => string(pwd(), "/dat/emb/vie-wv.txt"),
+    :extendedEmbeddingSize => 16
 )
 
 # English Web Treebank corpus
@@ -60,7 +62,9 @@ optionsEWT = Dict{Symbol,Any}(
     :logPath => string(pwd(), "/dat/aep/eng-loss.txt"),
     :scorePath => string(pwd(), "/dat/aep/eng-score-BiGRU.jsonl"),
     :unknown => "[unk]",
-    :padding => "[pad]"
+    :padding => "[pad]",
+    :extendedEmbeddingPath => string(pwd(), "/dat/emb/eng-wv.txt"),
+    :extendedEmbeddingSize => 16
 )
 
 # Bahasa Indonesia GSD corpus
@@ -92,5 +96,7 @@ optionsGSD = Dict{Symbol,Any}(
     :logPath => string(pwd(), "/dat/aep/ind-loss.txt"),
     :scorePath => string(pwd(), "/dat/aep/ind-score-BiGRU.jsonl"),
     :unknown => "[unk]",
-    :padding => "[pad]"
+    :padding => "[pad]",
+    :extendedEmbeddingPath => string(pwd(), "/dat/emb/ind-wv.txt"),
+    :extendedEmbeddingSize => 16
 )
