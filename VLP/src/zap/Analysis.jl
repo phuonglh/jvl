@@ -6,6 +6,7 @@ using JSON3
 using JSONTables
 using DataFrames
 using CSV
+using Statistics
 
 """
     aep(language)

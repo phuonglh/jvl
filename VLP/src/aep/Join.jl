@@ -20,7 +20,7 @@ function (g::Join)(x::Tuple{Array{Int,2},Array{Int,1}})
     a, b = x
     as = g.fs[1](a) # matrix of size (e_w + e_s + e_p) x sentenceLength
     u = g.fs[2](as) # if `fs[2]` is a RNN and `as` is an index array, this gives a matrix of size out x sentenceLength
-    vec(u[:, b])  # if `b` is an index array, this gives a concatenated vector of length |b| x out
+    vec(u[:, b])  # if `b` is an index array, this gives a concatenated vector of length |b| * out
 end
 
 function (g::Join)(x::SubArray)
@@ -66,15 +66,28 @@ struct ConcatLayer
     embedding::PretrainedEmbedding
 end
 
+ConcatLayer(fs...) = ConcatLayer(fs)
+
 """
     Input is a tuple of three elements `(a, b, c)`. The pair `(a, b)` will be passed 
     into the Join layer. The matrix `c` will be treated by the embedding layer. Each 
     column of `c` contains 4 word indices of the current parsing config.
+    This method is used in training where a batch is processed.
 """
 function (f::ConcatLayer)(x::Tuple{Array{Int,2},Array{Int,2},Array{Int,2}})
     a, b, c = x
     u = f.join((a, b))
     v = hcat([f.embedding(c[:,j]) for j=1:size(c,2)]...)
+    vcat(u, v)
+end
+
+"""
+    This method is used in decoding each configuration (testing phase).
+"""
+function (f::ConcatLayer)(x::Tuple{Array{Int,2},Array{Int,1},Array{Int,1}})
+    a, b, c = x
+    u = f.join((a, b)) # a column vector 
+    v = f.embedding(c) # a column vector
     vcat(u, v)
 end
 
