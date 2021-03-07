@@ -9,12 +9,13 @@ using CSV
 using Statistics
 
 """
-    aep(language)
+    aep(language, arch)
 
     Read experimental results of the AEP module into a data frame.
 """
-function aep(language::String="vie")::DataFrame
-    path = string("dat/aep/", language, "-score-BiGRU.jsonl")
+function aep(language::String="vie", arch::String="u")::DataFrame
+    suffix = if arch == "u" ".jsonl" else "-BiGRU.jsonl"; end
+    path = string("dat/aep/", language, "-score", suffix)    
     xs = readlines(path)
     s = string("[", join(xs, ","), "]");
     jt = jsontable(s)

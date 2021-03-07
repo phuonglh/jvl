@@ -191,17 +191,20 @@ function train(options)
     @info size(W)
     @info "sum(W) = $(sum(embeddingTransE.W))"
 
+    recurrentLayer = if options[:bidirectional]
+        BiGRU(options[:wordSize] + options[:shapeSize] + options[:posSize], options[:recurrentSize])
+    else
+        GRU(options[:wordSize] + options[:shapeSize] + options[:posSize], options[:recurrentSize])
+    end
     mlp = Chain(
         ConcatLayer(
             Join(
                 EmbeddingWSP(vocabSize, options[:wordSize], length(shapeIndex), options[:shapeSize], length(posIndex), options[:posSize]),
-                # GRU(options[:wordSize] + options[:shapeSize] + options[:posSize], options[:embeddingSize])
-                BiGRU(options[:wordSize] + options[:shapeSize] + options[:posSize], options[:embeddingSize])
-                # GRU(options[:embeddingSize], options[:embeddingSize])
+                recurrentLayer
             ),
             embeddingTransE
         ),
-        Dense(options[:featuresPerContext] * (options[:embeddingSize] + options[:extendedEmbeddingSize]), options[:hiddenSize], σ),
+        Dense(options[:featuresPerContext] * (options[:recurrentSize] + options[:extendedEmbeddingSize]), options[:hiddenSize], σ),
         Dense(options[:hiddenSize], length(labelIndex))
     )
     # save an index to an external file

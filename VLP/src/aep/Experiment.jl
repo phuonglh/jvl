@@ -40,13 +40,14 @@ function experiment(options, times=3)
         devUAS, devLAS = ArcEagerParser.evaluate(mlp, wordIndex, shapeIndex, posIndex, labelIndex, options, sentencesDev)
         testUAS, testLAS = ArcEagerParser.evaluate(mlp, wordIndex, shapeIndex, posIndex, labelIndex, options, sentencesTest)
         local scores = Dict{Symbol,Any}(
+            :bidirectional => options[:bidirectional],
             :trainCorpus => options[:trainCorpus],
             :minFreq => options[:minFreq],
             :maxSequenceLength => options[:maxSequenceLength],
             :wordSize => options[:wordSize],
             :shapeSize => options[:shapeSize],
             :posSize => options[:posSize], 
-            :embeddingSize => options[:embeddingSize],
+            :recurrentSize => options[:recurrentSize],
             :hiddenSize => options[:hiddenSize],
             :batchSize => options[:batchSize],
             :trainingTime => elapsedTime,
@@ -96,4 +97,33 @@ function analyse(options)
     gdf = groupby(testScores, :hiddenSize)
     # compute mean scores for each group
     combine(gdf, names(gdf) .=> mean)
+end
+
+"""
+    run(options)
+
+    Run a series of experiments.
+"""
+function run(options)
+    # architectures
+    as = [false, true]
+    # word embedding dimensions
+    ws = [25, 50, 100] 
+    # recurrent dimensions
+    rs = [16, 32, 64, 100, 128, 150, 200, 256]
+    # hidden layer dimensions
+    hs = [64, 128, 256]
+    for a in as
+        for w in ws
+            for r in rs
+                for h in hs
+                    options[:bidirectional] = a
+                    options[:wordSize] = w
+                    options[:recurrentSize] = r
+                    options[:hiddenSize] = h
+                    experiment(options)
+                end
+            end
+        end
+    end
 end
