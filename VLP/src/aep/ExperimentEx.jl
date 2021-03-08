@@ -32,7 +32,7 @@ function experiment(options, times=3)
         local elapsedTime = time_ns()
         TransitionClassifierEx.train(options)
         elapsedTime = time_ns() - elapsedTime
-        mlp, wordIndex, shapeIndex, posIndex, labelIndex = TransitionClassifier.load(options)
+        mlp, wordIndex, shapeIndex, posIndex, labelIndex = TransitionClassifierEx.load(options)
         accuracyTrain = TransitionClassifierEx.evaluate(mlp, wordIndex, shapeIndex, posIndex, labelIndex, options, sentencesTrain)
         accuracyDev = TransitionClassifierEx.evaluate(mlp, wordIndex, shapeIndex, posIndex, labelIndex, options, sentencesDev)
         accuracyTest = TransitionClassifierEx.evaluate(mlp, wordIndex, shapeIndex, posIndex, labelIndex, options, sentencesTest)
