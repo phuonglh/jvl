@@ -82,6 +82,7 @@ function run(options)
     rs = [16, 32, 64, 100, 128, 150, 200, 256]
     # hidden layer dimensions
     hs = [64, 128, 256]
+    options[:scorePath] = string(options[:scorePath], ".ex")
     for a in as
         for w in ws
             for r in rs
@@ -90,7 +91,6 @@ function run(options)
                     options[:wordSize] = w
                     options[:recurrentSize] = r
                     options[:hiddenSize] = h
-                    options[:scorePath] = string(options[:scorePath], ".ex")
                     experiment(options)
                 end
             end
