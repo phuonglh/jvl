@@ -152,7 +152,10 @@ MLP with the following pipeline:
 
 `Embedding(numFeatures, embeddingSize) -> Dense(embeddingSize, hiddenSize, sigmoid) -> Dense(hiddenSize, numLabels)`
 
-The feature embeddings are trained jointly with the overall model. 
+The feature embeddings are trained jointly with the overall model. There are two flavors of the model:
+
+- The CBOW model with `Embedding` layer
+- The concatenation model with `EmbeddingConcat` layer
 
 Data sets are universal dependency treebanks with available training/dev./test split. Specifically
 
@@ -171,8 +174,6 @@ The `tdp/Oracle.jl` utility extracts features from parsing configurations. Each 
 ```
     cd jvl/VLP
     julia
-    ]
-    activate .
     include("src/tdp/Classifier.jl")
     options = TransitionClassifier.optionsVUD
     # change parameters before training:
@@ -182,7 +183,7 @@ The `tdp/Oracle.jl` utility extracts features from parsing configurations. Each 
     # load graphs for evaluating:
     using Flux
     mlp, featureIndex, labelIndex = TransitionClassifier.load(options)
-    sentences = TransitionClassifier.readCorpusUD(options[:testCorpus])
+    sentences = TransitionClassifier.readCorpusUD(options[:testCorpus]);
     TransitionClassifier.evaluate(mlp, featureIndex, labelIndex, options, sentences)
 ```
 
@@ -195,13 +196,11 @@ After training a classifier, invoke the parser to parse or evaluate its accuracy
 ```
     cd jvl/VLP
     julia
-    ]
-    activate .
     include("src/tdp/Parser.jl")
     options = DependencyParser.TransitionClassifier.optionsVUD
     using Flux
     mlp, featureIndex, labelIndex = TransitionClassifier.load(options)
-    sentences = DependencyParser.readCorpusUD(options[:testCorpus])
+    sentences = DependencyParser.readCorpusUD(options[:testCorpus]);
     # DependencyParser.evaluate(mlp, featureIndex, labelIndex, options, sentences)
     DependencyParser.evaluate(options)
 ```
@@ -243,3 +242,83 @@ After training a classifier, invoke the parser to parse or evaluate its accuracy
 | 100 | 128 | 0.8309 | 0.5685 | 0.5514 | 1,204 (s) MBP | 13 | 0.6409 | 0.5907 | 0.3932 | 0.3127 | 0.3706 | 0.2851 | 
 | 100 | 256 | 0.7419 | 0.5492 | 0.5371 | 929 (s) MBP | 10 | 0.4135 | 0.3861 | 0.2699 | 0.2211 | 0.2627 | 0.2093 | 
 
+# 4. Arc-Eager Parsing (AEP)
+
+Train and evaluate the transition classifier:
+
+```
+    cd jvl/VLP
+    julia
+    include("src/aep/Classifier.jl")
+    options = TransitionClassifier.optionsVUD
+    # change parameters before training:
+    options[:hiddenSize] = 64
+    mlp = TransitionClassifier.train(options)
+    # load graphs for evaluating:
+    sentences = TransitionClassifier.readCorpusUD(options[:testCorpus]);
+    using Flux
+    TransitionClassifier.evaluate(options, sentences)
+```
+
+Train and evaluate the parser:
+
+```
+    cd jvl/VLP
+    julia
+    include("src/aep/Parser.jl")
+    options = ArcEagerParser.TransitionClassifier.optionsVUD
+    using Flux
+    ArcEagerParser.evaluate(options)
+```
+
+Perform experiments:
+
+```
+    cd jv/VLP
+    julia
+    include("src/aep/Experiment.jl")
+    options = ArcEagerParser.TransitionClassifier.optionsVUD 
+    # update options
+    options[:embeddingSize] = 64
+    options[:hiddenSize] = 128
+    experiments(options)
+    # open the result file `/dat/aep/$lang-score.jsonl`
+```
+
+# 5. Graph Embedding
+
+To train graph embeddings for a language:
+
+- Open `src/emb/TransE.jl`, edit the `language` selection line.
+- Run this file.
+- The output should be saved in `dat/emb/`.
+
+# 6. Extended Graph Embedding Features for AEP
+
+Train and evaluate the extended transition classifier:
+
+```
+    cd jvl/VLP
+    julia
+    include("src/aep/ClassifierEx.jl")
+    options = TransitionClassifierEx.optionsVUD
+    # change parameters before training:
+    options[:hiddenSize] = 64
+    mlp = TransitionClassifierEx.train(options)
+    # load graphs for evaluating:
+    sentences = TransitionClassifierEx.readCorpusUD(options[:testCorpus]);
+    using Flux
+    TransitionClassifierEx.evaluate(options, sentences)
+```
+
+Train and evaluate the extended parser:
+
+```
+    cd jvl/VLP
+    julia
+    include("src/aep/ClassifierEx.jl")
+    include("src/aep/ParserEx.jl")
+    options = ArcEagerParserEx.TransitionClassifierEx.optionsVUD
+    using Flux
+    ArcEagerParserEx.evaluate(options)
+```
