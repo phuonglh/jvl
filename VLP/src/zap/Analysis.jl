@@ -9,19 +9,20 @@ using CSV
 using Statistics
 
 """
-    aep(language, arch)
+    aep(language, ex)
 
     Read experimental results of the AEP module into a data frame.
 """
-function aep(language::String="vie", arch::String="u")::DataFrame
-    suffix = if arch == "u" ".jsonl" else "-BiGRU.jsonl"; end
-    path = string("dat/aep/", language, "-score", suffix)    
+function aep(language::String="vie", ex::String="")::DataFrame
+    path = string("dat/aep/experiments-", language, ".jsonl", ex)
     xs = readlines(path)
     s = string("[", join(xs, ","), "]");
     jt = jsontable(s)
     df = DataFrame(jt)
-    ef = select(df, :wordSize => :w, :posSize => :p, :shapeSize => :s, 
-        :embeddingSize => :e, :hiddenSize => :h, # should group by these columns
+    ef = select(df, 
+        :wordSize => :w, :posSize => :p, :shapeSize => :s, 
+        :bidirectional => :bi,
+        :recurrentSize => :r, :hiddenSize => :h, # should group by these columns
         :trainingTime => :time,        
         :trainingAccuracy => :t, :developmentAccuracy => :d, :testAccuracy => :a,
         :trainingUAS => :tu, :devUAS => :du, :testUAS => :u,
@@ -35,7 +36,7 @@ function analyzeAEP(df::DataFrame)
     # ff = combine(gf, :t => mean, :d => mean, :a => mean, :tu => mean, :tl => mean, :du => mean, :dl => mean, :u => mean, :l => mean)
     ff = combine(gf, valuecols(gf) .=> mean)
     # group by two columns
-    hf = groupby(df, [:e, :w])
+    hf = groupby(df, [:r, :w])
     kf = combine(hf, valuecols(hf) .=> mean)
 end
 
