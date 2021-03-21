@@ -8,6 +8,24 @@ using DataFrames
 using CSV
 using Statistics
 
+function tdp(language::String="vie", arch::String="bof")::DataFrame
+    path = string("dat/tdp/experiments-", language, "-", arch, ".tsv")
+    df = DataFrame(CSV.File(path))
+    ef = select(df, 
+        :embeddingSize => (x -> Int.(x)) => :e, 
+        :hiddenSize => (x -> Int.(x)) => :h,
+        :trainingAcc => :t, :devAcc => :d, :testAcc => :a,
+        :trainingUAS => :tu, :devUAS => :du, :testUAS => :u,
+        :trainingLAS => :tl, :devLAS => :dl, :testLAS => :l,
+    )
+end
+
+function analyseTDP(df::DataFrame)
+    # group by embedding size (:e) and hidden size (:h)
+    hf = groupby(df, [:e, :h])
+    ff = combine(hf, valuecols(hf) .=> (x -> round.(mean(x)*100, digits=2)))
+end
+
 """
     aep(language, ex)
 
@@ -30,30 +48,17 @@ function aep(language::String="vie", ex::String="")::DataFrame
     )
 end
 
-function analyzeAEP(df::DataFrame)
-    # group by embedding size (:e) and compute averages
-    gf = groupby(df, :e)
-    # ff = combine(gf, :t => mean, :d => mean, :a => mean, :tu => mean, :tl => mean, :du => mean, :dl => mean, :u => mean, :l => mean)
-    ff = combine(gf, valuecols(gf) .=> mean)
-    # group by two columns
-    hf = groupby(df, [:r, :w])
-    kf = combine(hf, valuecols(hf) .=> mean)
-end
-
-function tdp(language::String="vie", arch::String="bof")::DataFrame
-    path = string("dat/tdp/experiments-", language, "-", arch, ".tsv")
-    df = DataFrame(CSV.File(path))
-    ef = select(df, 
-        :embeddingSize => (x -> Int.(x)) => :e, 
-        :hiddenSize => (x -> Int.(x)) => :h,
-        :trainingAcc => :t, :devAcc => :d, :testAcc => :a,
-        :trainingUAS => :tu, :devUAS => :du, :testUAS => :u,
-        :trainingLAS => :tl, :devLAS => :dl, :testLAS => :l,
-    )
-end
-
-function analyseTDP(df::DataFrame)
-    # group by embedding size (:e) and hidden size (:h)
-    hf = groupby(df, [:e, :h])
-    ff = combine(hf, valuecols(hf) .=> (x -> round.(mean(x)*100, digits=2)))
+function analyzeAEP(language::String="vie", ex::String="", unidirectional::Bool=true)
+    df = aep(language, ex)
+    hs = [64, 128, 256]
+    for h in hs
+        u = if unidirectional ".u" else ".b"; end
+        output = string("dat/aep/aep-", language, ".h", h, u, ex, ".txt")
+        ef = df[df.bi .== unidirectional, :] # filter unidirectional or bidirectional results
+        ef = ef[ef.h .== h, :] # filter hidden size
+        kf = groupby(ef, [:r, :w])
+        gf = combine(kf, valuecols(kf) .=> (x -> round.(mean(x)*100, digits=2)))
+        hf = select(gf, :r => :r, :w => :w, :u_function => :u, :l_function => :l)
+        CSV.write(output, hf)
+    end
 end
