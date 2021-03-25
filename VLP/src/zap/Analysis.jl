@@ -7,6 +7,7 @@ using JSONTables
 using DataFrames
 using CSV
 using Statistics
+using Plots
 
 function tdp(language::String="vie", arch::String="bof")::DataFrame
     path = string("dat/tdp/experiments-", language, "-", arch, ".tsv")
@@ -61,4 +62,24 @@ function analyzeAEP(language::String="vie", ex::String="", unidirectional::Bool=
         hf = select(gf, :r => :r, :w => :w, :u_function => :u, :l_function => :l)
         CSV.write(output, hf)
     end
+end
+
+"""
+    compareAEP(language, w, h, unidirectional)
+
+    Compares empirical results between standard and extended parsing model given 
+    a word embedding size and a hidden size. The x-axis shows recurrent sizes and 
+    the y-axis shows the LAS values.
+"""
+function compareAEP(language::String="vie", w::Int=25, h::Int=64, unidirectional::Bool=true)
+    u = if unidirectional ".u" else ".b"; end
+    output1 = string("dat/aep/aep-", language, ".h", h, u, ".txt")
+    output2 = string("dat/aep/aep-", language, ".h", h, u, ".ex.txt")
+    df1 = CSV.read(output1, DataFrame)
+    df2 = CSV.read(output2, DataFrame)
+    dfA = df1[df1.w .== w, :]
+    dfB = df2[df2.w .== w, :]
+    plot(dfA[:, :r], [dfA[:, :l], dfB[:, :l]], label=["standard" "extended"], 
+        title=string("w=", w, ", h=", h),
+        xlabel="recurrent size", ylabel="LAS", legend=:bottomright)
 end
