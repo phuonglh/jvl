@@ -42,3 +42,8 @@ Flux.@functor EmbeddingWSP
 # x = [3 4 5; 2 3 4; 1 2 3]
 # f = EmbeddingWSP(6,3,4,2,3,1)
 # f(x) should give a matrix of size 6x3 (6 = 3 + 2 + 1)
+
+# add length functions for our types
+# 
+Base.length(e::Embedding) = length(e.W)
+Base.length(e::EmbeddingWSP) = length(e.word) + length(e.shape) + length(e.partOfSpeech)

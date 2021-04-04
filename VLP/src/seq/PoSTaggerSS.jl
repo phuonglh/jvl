@@ -21,6 +21,7 @@ include("Embedding.jl")
 include("Options.jl")
 include("Utils.jl")
 
+
 """
     vocab(sentences, minFreq)
 
@@ -103,7 +104,7 @@ encode(X::Array{Int,2}, embedding, encoder) = encoder(embedding(X))
 
     Encodes a batch, each element in the batch is a matrix representing a sequence. 
 """
-encode(Xb::Array{Array{Int,2},1}, embedding, encoder) = encode.(Xb, embedding, encoder)
+encode(Xb::Array{Array{Int,2},1}, embedding, encoder) = [encode(X, embedding, encoder) for X in Xb]
 
 """
     decode(H, y0, decoder, α, β, linear)
@@ -128,12 +129,14 @@ function decode(H::Array{Float32,2}, Y0::Array{Int,2}, encoder, decoder, α, β,
     hcat(ŷs...)
 end
 
-decode(Hb::Array{Array{Float32,2},1}, Y0b::Array{Array{Int,2},1}, encoder, decoder, α, β, linear) = decode.(Hb, Y0b, encoder, decoder, α, β, linear)
-
+function decode(Hb::Array{Array{Float32,2},1}, Y0b::Array{Array{Int,2},1}, encoder, decoder, α, β, linear)    
+    [decode(Hb[i], Y0b[i], encoder, decoder, α, β, linear) for i=1:length(Hb)]
+end
 
 function model(Xb, Y0b, embedding, encoder, decoder, α, β, linear)
     Ŷb = decode(encode(Xb, embedding, encoder), Y0b, encoder, decoder, α, β, linear)
-    Flux.reset!(machine)
+    Flux.reset!(encoder)
+    Flux.reset!(decoder)
     return Ŷb
 end
 
@@ -171,7 +174,7 @@ function train(options::Dict{Symbol,Any})
     saveIndex(posIndex, options[:posPath])
     saveIndex(labelIndex, options[:labelPath])
 
-    # create batches of data, each batch
+    # create batches of data
     Xbs, Y0bs, Ybs = batch(sentences, wordIndex, shapeIndex, posIndex, labelIndex)
     dataset = collect(zip(Xbs, Y0bs, Ybs))
 
@@ -229,20 +232,21 @@ function train(options::Dict{Symbol,Any})
     decoder = GRU(options[:hiddenSize] + numLabels, options[:hiddenSize])
     linear = Dense(options[:hiddenSize], numLabels)
     # The full machinary
-    machine = (embedding, encoder, attention, decoder, linear)
+    machine = Chain(embedding, encoder, attention, decoder, linear)
 
     # define the loss function
-    loss(Xb, Y0b, Yb) = sum(Flux.logitcrossentropy.(model(Xb, Y0b,embedding, encoder, decoder, α, β, linear), Yb))
+    loss(Xb, Y0b, Yb) = sum(Flux.logitcrossentropy.(model(Xb, Y0b, embedding, encoder, decoder, α, β, linear), Yb))
 
     Ubs, Vbs, Wbs = batch(sentencesValidation, wordIndex, shapeIndex, posIndex, labelIndex)
+    datasetValidation = collect(zip(Ubs, Vbs, Wbs))
 
     optimizer = ADAM(1E-4)
     file = open(options[:logPath], "w")
     write(file, "loss,trainingAccuracy,validationAccuracy\n")
     evalcb = function()
         ℓ = sum(loss(datasetValidation[i]...) for i=1:length(datasetValidation))
-        trainingAccuracy = evaluate(model, Xbs, Y0bs, Ybs, options)
-        validationAccuracy = evaluate(model, Ubs, Vbs, Wbs, options)
+        trainingAccuracy = evaluate(embedding, encoder, decoder, α, β, linear, Xbs, Y0bs, Ybs, options)
+        validationAccuracy = evaluate(embedding, encoder, decoder, α, β, linear, Ubs, Vbs, Wbs, options)
         @info string("loss = ", ℓ, ", training accuracy = ", trainingAccuracy, ", validation accuracy = ", validationAccuracy)
         write(file, string(ℓ, ',', trainingAccuracy, ',', validationAccuracy, "\n"))
         # gs = gradient(() -> loss(Xbs[1], Y0bs[1], Ybs[1]), params(machine))
@@ -257,7 +261,7 @@ function train(options::Dict{Symbol,Any})
     @time while (t <= options[:numEpochs]) 
         @info "Epoch $t, k = $k"
         Flux.train!(loss, params(machine), dataset, optimizer, cb = Flux.throttle(evalcb, 60))
-        devAccuracy = evaluate(model, Ubs, Vbs, Wbs, options)
+        devAccuracy = evaluate(embedding, encoder, decoder, α, β, linear, Ubs, Vbs, Wbs, options)
         if bestDevAccuracy < devAccuracy
             bestDevAccuracy = devAccuracy
             k = 0
@@ -278,22 +282,22 @@ function train(options::Dict{Symbol,Any})
 
     @info "Total weight of final word embeddings = $(sum(embedding.word.W))"
     @info "Evaluating the model on the training set..."
-    accuracy = evaluate(model, Xbs, Y0bs, Ybs, options)
+    accuracy = evaluate(embedding, encoder, decoder, α, β, linear, Xbs, Y0bs, Ybs, options)
     @info "Training accuracy = $accuracy"
-    accuracyValidation = evaluate(model, Ubs, Vbs, Wbs, options)
+    accuracyValidation = evaluate(embedding, encoder, decoder, α, β, linear, Ubs, Vbs, Wbs, options)
     @info "Validation accuracy = $accuracyValidation"
     machine
 end
 
 """
-    evaluate(model, Xbs, Y0bs, Ybs, options)
+    evaluate(embedding, encoder, decoder, α, β, linear, Xbs, Y0bs, Ybs, options)
 
     Evaluate the accuracy of the model on a dataset. 
 """
-function evaluate(model, Xbs, Y0bs, Ybs, options)
+function evaluate(embedding, encoder, decoder, α, β, linear, Xbs, Y0bs, Ybs, options)
     numBatches = length(Xbs)
     @floop ThreadedEx(basesize=numBatches÷options[:numCores]) for i=1:numBatches
-        Ŷb = Flux.onecold.(model(Xbs[i], Y0bs[i]))
+        Ŷb = Flux.onecold.(model(Xbs[i], Y0bs[i], embedding, encoder, decoder, α, β, linear))
         Yb = Flux.onecold.(Ybs[i])
         # number of tokens and number of matches in this batch
         tokens, matches = 0, 0
@@ -312,42 +316,42 @@ function evaluate(model, Xbs, Y0bs, Ybs, options)
     return numMatches/numTokens
 end
 
-"""
-    predict(model, Xbs, Y0bs, Ybs,  split, options)
+# """
+#     predict(model, Xbs, Y0bs, Ybs,  split, options)
 
-    Predict a (training) data set, save result to a CoNLL-2003 evaluation script.
-"""
-function predict(model, Xbs, Y0bs, Ybs, split::Symbol, paddingY::Int=1)
-    numBatches = length(Xbs)
-    @floop ThreadedEx(basesize=numBatches÷options[:numCores]) for i=1:numBatches
-        Ŷb = Flux.onecold.(model(Xbs[i], Y0bs[i]))
-        Yb = Flux.onecold.(Ybs[i])
-        truth, pred = Array{Array{String,1},1}(), Array{Array{String,1},1}()
-        for t=1:length(Yb)
-            n = options[:maxSequenceLength]
-            # find the last position of non-padded element
-            while Yb[t][n] == paddingY
-                n = n - 1
-            end
-            push!(truth, vocabularies.labels[Yb[t][1:n]])
-            push!(pred, vocabularies.labels[Ŷb[t][1:n]])
-        end
-        @reduce(ss = append!!(EmptyVector(), [(truth, pred)]))
-    end
-    file = open(options[split], "w")
-    result = Array{String,1}()
-    for b=1:numBatches
-        truths = ss[b][1]
-        preds = ss[b][2]
-        for i = 1:length(truths)
-            x = map((a, b) -> string(a, ' ', b), truths[i], preds[i])
-            s = join(x, "\n")
-            push!(result, s * "\n")
-        end
-    end
-    write(file, join(result, "\n"))
-    close(file)
-end
+#     Predict a (training) data set, save result to a CoNLL-2003 evaluation script.
+# """
+# function predict(model, Xbs, Y0bs, Ybs, split::Symbol, paddingY::Int=1)
+#     numBatches = length(Xbs)
+#     @floop ThreadedEx(basesize=numBatches÷options[:numCores]) for i=1:numBatches
+#         Ŷb = Flux.onecold.(model(Xbs[i], Y0bs[i]))
+#         Yb = Flux.onecold.(Ybs[i])
+#         truth, pred = Array{Array{String,1},1}(), Array{Array{String,1},1}()
+#         for t=1:length(Yb)
+#             n = options[:maxSequenceLength]
+#             # find the last position of non-padded element
+#             while Yb[t][n] == paddingY
+#                 n = n - 1
+#             end
+#             push!(truth, vocabularies.labels[Yb[t][1:n]])
+#             push!(pred, vocabularies.labels[Ŷb[t][1:n]])
+#         end
+#         @reduce(ss = append!!(EmptyVector(), [(truth, pred)]))
+#     end
+#     file = open(options[split], "w")
+#     result = Array{String,1}()
+#     for b=1:numBatches
+#         truths = ss[b][1]
+#         preds = ss[b][2]
+#         for i = 1:length(truths)
+#             x = map((a, b) -> string(a, ' ', b), truths[i], preds[i])
+#             s = join(x, "\n")
+#             push!(result, s * "\n")
+#         end
+#     end
+#     write(file, join(result, "\n"))
+#     close(file)
+# end
 
 
 # """
