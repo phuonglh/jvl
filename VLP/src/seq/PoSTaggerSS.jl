@@ -135,8 +135,6 @@ end
 
 function model(Xb, Y0b, embedding, encoder, decoder, α, β, linear)
     Ŷb = decode(encode(Xb, embedding, encoder), Y0b, encoder, decoder, α, β, linear)
-    Flux.reset!(encoder)
-    Flux.reset!(decoder)
     return Ŷb
 end
 
@@ -240,7 +238,8 @@ function train(options::Dict{Symbol,Any})
     Ubs, Vbs, Wbs = batch(sentencesValidation, wordIndex, shapeIndex, posIndex, labelIndex)
     datasetValidation = collect(zip(Ubs, Vbs, Wbs))
 
-    optimizer = ADAM(1E-4)
+    # should use a small learning rate
+    optimizer = ADAM(1E-5)
     file = open(options[:logPath], "w")
     write(file, "loss,trainingAccuracy,validationAccuracy\n")
     evalcb = function()
@@ -314,6 +313,13 @@ function evaluate(embedding, encoder, decoder, α, β, linear, Xbs, Y0bs, Ybs, o
     end
     @info "\tTotal matched tokens = $(numMatches)/$(numTokens)"
     return numMatches/numTokens
+end
+
+function trainVUD()
+    options = optionsVUD
+    options[:wordSize] = 16
+    options[:hiddenSize] = 32
+    train(options)
 end
 
 # """
