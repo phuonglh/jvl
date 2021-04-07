@@ -209,15 +209,15 @@ function train(options::Dict{Symbol,Any}, lr=1E-4)
     """
         β(s, H)
 
-        Align a decoder state `s` with hidden states of inputs `h` of size (hiddenSize x m). 
+        Align a decoder state `s` with hidden states of inputs `H` of size (hiddenSize x m). 
         The decoder state is a column vector `s` of length hiddenSize, it should be repeated to create 
         the same number of columns as `h`, that is of size (hiddenSize x m). 
 
         This function computes attention scores matrix of size (1 x maxSequenceLength) for a decoder position.
     """
     function β(s, H::Array{Float32,2})
-        V = s .* Float32.(ones(1, size(H,2)))
-        return attention(vcat(H, V))
+        S = s .* Float32.(ones(1, size(H,2)))
+        return attention(vcat(H, S))
     end
 
     """
