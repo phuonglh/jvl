@@ -107,43 +107,50 @@ encode(X::Array{Int,2}, embedding, encoder) = encoder(embedding(X))
 encode(Xb::Array{Array{Int,2},1}, embedding, encoder) = [encode(X, embedding, encoder) for X in Xb]
 
 """
-    decode(H, y0, decoder, α, β, linear)
+    decode(H, y0, decoder, α, β)
 
-    H is the hidden states of the encoder, which is a matrix of size (hiddenSize x maxSequenceLength)
+    Decode at a position. `H` contains the hidden states of the encoder, which is a matrix of size (hiddenSize x maxSequenceLength)
     and y0 is an one-hot vector representing a label at position t.
 """
-function decode(H::Array{Float32,2}, y0::Array{Int,1}, decoder, α, β, linear)
+function decode(H::Array{Float32,2}, y0::Array{Int,1}, decoder, α, β)
     w = α(β(decoder.state, H))
     c = sum(w .* H, dims=2)
     v = vcat(y0, c)
-    linear(decoder(v))
+    return decoder(v)
 end
 
-function decode(H::Array{Float32,2}, Y0::Array{Int,2}, encoder, decoder, α, β, linear)
+"""
+    decode(H, Y0, encoder, decoder, α, β)
+
+    Decodes a sequence given all components.
+"""
+function decode(H::Array{Float32,2}, Y0::Array{Int,2}, encoder, decoder, α, β)
     # take the last state of the encoder as the init state for the decoder
     decoder.init = encoder.state[:,end] 
     # decode positions, one by one
     y0s = [Y0[:, t] for t=1:size(Y0,2)]
-    ŷs = [decode(H, y0, decoder, α, β, linear) for y0 in y0s]
+    ŷs = [decode(H, y0, decoder, α, β) for y0 in y0s]
     # stack the output array into a 2-d matrix of size (hiddenSize x maxSequenceLength)
-    hcat(ŷs...)
+    return hcat(ŷs...)
 end
 
-function decode(Hb::Array{Array{Float32,2},1}, Y0b::Array{Array{Int,2},1}, encoder, decoder, α, β, linear)    
-    [decode(Hb[i], Y0b[i], encoder, decoder, α, β, linear) for i=1:length(Hb)]
+function decode(Hb::Array{Array{Float32,2},1}, Y0b::Array{Array{Int,2},1}, encoder, decoder, α, β) 
+    return [decode(Hb[i], Y0b[i], encoder, decoder, α, β) for i=1:length(Hb)]
 end
 
 function model(Xb, Y0b, embedding, encoder, decoder, α, β, linear)
-    Ŷb = decode(encode(Xb, embedding, encoder), Y0b, encoder, decoder, α, β, linear)
-    return Ŷb
+    Ŷbs = decode(encode(Xb, embedding, encoder), Y0b, encoder, decoder, α, β)
+    Flux.reset!(encoder)
+    Flux.reset!(decoder)
+    return linear.(Ŷbs)
 end
 
 """
-    train(options)
+    train(options, lr)
 
-    Train an encoder.
+    Train the pipeline using a learning rate.
 """
-function train(options::Dict{Symbol,Any})
+function train(options::Dict{Symbol,Any}, lr=1E-4)
     (sentences, sentencesValidation, sentencesTest) = if (options[:columnFormat])
         (readCorpusUD(options[:trainCorpus]), readCorpusUD(options[:validCorpus]), readCorpusUD(options[:testCorpus]))
     else
@@ -210,7 +217,7 @@ function train(options::Dict{Symbol,Any})
     """
     function β(s, H::Array{Float32,2})
         V = s .* Float32.(ones(1, size(H,2)))
-        attention(vcat(H, V))
+        return attention(vcat(H, V))
     end
 
     """
@@ -222,7 +229,7 @@ function train(options::Dict{Symbol,Any})
     function α(β::Array{Float32,2})
         score = exp.(β)
         s = sum(score, dims=2)
-        score ./ s
+        return score ./ s
     end
 
     # 3. Create a decoder
@@ -230,7 +237,7 @@ function train(options::Dict{Symbol,Any})
     decoder = GRU(options[:hiddenSize] + numLabels, options[:hiddenSize])
     linear = Dense(options[:hiddenSize], numLabels)
     # The full machinary
-    machine = Chain(embedding, encoder, attention, decoder, linear)
+    machine = (embedding, encoder, attention, decoder, linear)
 
     # define the loss function
     loss(Xb, Y0b, Yb) = sum(Flux.logitcrossentropy.(model(Xb, Y0b, embedding, encoder, decoder, α, β, linear), Yb))
@@ -238,20 +245,20 @@ function train(options::Dict{Symbol,Any})
     Ubs, Vbs, Wbs = batch(sentencesValidation, wordIndex, shapeIndex, posIndex, labelIndex)
     datasetValidation = collect(zip(Ubs, Vbs, Wbs))
 
-    # should use a small learning rate
-    optimizer = ADAM(1E-5)
+    optimizer = ADAM(lr)
     file = open(options[:logPath], "w")
     write(file, "loss,trainingAccuracy,validationAccuracy\n")
     evalcb = function()
         ℓ = sum(loss(datasetValidation[i]...) for i=1:length(datasetValidation))
         trainingAccuracy = evaluate(embedding, encoder, decoder, α, β, linear, Xbs, Y0bs, Ybs, options)
         validationAccuracy = evaluate(embedding, encoder, decoder, α, β, linear, Ubs, Vbs, Wbs, options)
-        @info string("loss = ", ℓ, ", training accuracy = ", trainingAccuracy, ", validation accuracy = ", validationAccuracy)
+        @info string("\tloss = ", ℓ, ", training accuracy = ", trainingAccuracy, ", validation accuracy = ", validationAccuracy)
         write(file, string(ℓ, ',', trainingAccuracy, ',', validationAccuracy, "\n"))
         # gs = gradient(() -> loss(Xbs[1], Y0bs[1], Ybs[1]), params(machine))
         # eg = sum(gs[encoder.cell.Wh])
         # dg = sum(gs[decoder.cell.Wh])
         # @info "\tsum(encoder gradient) = $(eg), sum(decoder gradient) = $(dg)"
+        @info sum(decoder.init)
     end
     # train the model until the validation accuracy decreases 2 consecutive times
     t = 1
@@ -266,12 +273,12 @@ function train(options::Dict{Symbol,Any})
             k = 0
         else
             k = k + 1
-            if (k == 3)
+            if (k == 5)
                 @info "Stop training because current accuracy is smaller than the best accuracy: $(devAccuracy) < $(bestDevAccuracy)."
                 break
             end
         end
-        @info "bestDevAccuracy = $bestDevAccuracy"
+        @info "\tbestDevAccuracy = $bestDevAccuracy"
         t = t + 1
     end
     close(file)
@@ -281,9 +288,9 @@ function train(options::Dict{Symbol,Any})
 
     @info "Total weight of final word embeddings = $(sum(embedding.word.W))"
     @info "Evaluating the model on the training set..."
-    accuracy = evaluate(embedding, encoder, decoder, α, β, linear, Xbs, Y0bs, Ybs, options)
+    accuracy = evaluate(embedding, encoder, decoder, α, β, linear, Xbs, Y0bs, Ybs, options) * 100
     @info "Training accuracy = $accuracy"
-    accuracyValidation = evaluate(embedding, encoder, decoder, α, β, linear, Ubs, Vbs, Wbs, options)
+    accuracyValidation = evaluate(embedding, encoder, decoder, α, β, linear, Ubs, Vbs, Wbs, options) * 100
     @info "Validation accuracy = $accuracyValidation"
     machine
 end
@@ -311,15 +318,8 @@ function evaluate(embedding, encoder, decoder, α, β, linear, Xbs, Y0bs, Ybs, o
         end
         @reduce(numTokens += tokens, numMatches += matches)
     end
-    @info "\tTotal matched tokens = $(numMatches)/$(numTokens)"
+    @info "\tmatched tokens = $(numMatches)/$(numTokens)"
     return numMatches/numTokens
-end
-
-function trainVUD()
-    options = optionsVUD
-    options[:wordSize] = 16
-    options[:hiddenSize] = 32
-    train(options)
 end
 
 # """
