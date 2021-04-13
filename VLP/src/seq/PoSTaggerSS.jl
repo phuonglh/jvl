@@ -239,8 +239,22 @@ function train(options::Dict{Symbol,Any}, lr=1E-4)
     # The full machinary
     machine = (embedding, encoder, attention, decoder, linear)
 
-    # define the loss function
-    loss(Xb, Y0b, Yb) = sum(Flux.logitcrossentropy.(model(Xb, Y0b, embedding, encoder, decoder, α, β, linear), Yb))
+    # Note that we need to explicitly program a loss function which does not take into account of padding label.
+    # loss(Xb, Y0b, Yb) = sum(Flux.logitcrossentropy.(model(Xb, Y0b, embedding, encoder, decoder, α, β, linear), Yb))
+    function loss(Xb, Y0b, Yb)
+        Ŷb = model(Xb, Y0b, embedding, encoder, decoder, α, β, linear)
+        Zb = Flux.onecold.(Ŷb)
+        J = 0
+        for t=1:length(Yb)
+            n = options[:maxSequenceLength]
+            # find the last position of non-padded element (1)
+            while Zb[t][n] == 1
+                n = n - 1
+            end
+            J += Flux.logitcrossentropy(Ŷb[t][1:n], Yb[t][1:n])
+        end
+        return J
+    end
 
     Ubs, Vbs, Wbs = batch(sentencesValidation, wordIndex, shapeIndex, posIndex, labelIndex)
     datasetValidation = collect(zip(Ubs, Vbs, Wbs))
@@ -254,11 +268,6 @@ function train(options::Dict{Symbol,Any}, lr=1E-4)
         validationAccuracy = evaluate(embedding, encoder, decoder, α, β, linear, Ubs, Vbs, Wbs, options)
         @info string("\tloss = ", ℓ, ", training accuracy = ", trainingAccuracy, ", validation accuracy = ", validationAccuracy)
         write(file, string(ℓ, ',', trainingAccuracy, ',', validationAccuracy, "\n"))
-        # gs = gradient(() -> loss(Xbs[1], Y0bs[1], Ybs[1]), params(machine))
-        # eg = sum(gs[encoder.cell.Wh])
-        # dg = sum(gs[decoder.cell.Wh])
-        # @info "\tsum(encoder gradient) = $(eg), sum(decoder gradient) = $(dg)"
-        @info sum(decoder.init)
     end
     # train the model until the validation accuracy decreases 2 consecutive times
     t = 1
@@ -288,9 +297,9 @@ function train(options::Dict{Symbol,Any}, lr=1E-4)
 
     @info "Total weight of final word embeddings = $(sum(embedding.word.W))"
     @info "Evaluating the model on the training set..."
-    accuracy = evaluate(embedding, encoder, decoder, α, β, linear, Xbs, Y0bs, Ybs, options) * 100
+    accuracy = evaluate(embedding, encoder, decoder, α, β, linear, Xbs, Y0bs, Ybs, options)
     @info "Training accuracy = $accuracy"
-    accuracyValidation = evaluate(embedding, encoder, decoder, α, β, linear, Ubs, Vbs, Wbs, options) * 100
+    accuracyValidation = evaluate(embedding, encoder, decoder, α, β, linear, Ubs, Vbs, Wbs, options)
     @info "Validation accuracy = $accuracyValidation"
     machine
 end
@@ -319,7 +328,7 @@ function evaluate(embedding, encoder, decoder, α, β, linear, Xbs, Y0bs, Ybs, o
         @reduce(numTokens += tokens, numMatches += matches)
     end
     @info "\tmatched tokens = $(numMatches)/$(numTokens)"
-    return numMatches/numTokens
+    return 100 * numMatches/numTokens
 end
 
 # """
