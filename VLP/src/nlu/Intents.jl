@@ -16,11 +16,11 @@ include("GRU3.jl")
 include("Utils.jl")
 
 options = Dict{Symbol,Any}(
-    :minFreq => 2,
+    :minFreq => 1,
     :vocabSize => 2^16,
-    :wordSize => 50,
-    :hiddenSize => 128,
-    :maxSequenceLength => 15,
+    :wordSize => 20,
+    :hiddenSize => 64,
+    :maxSequenceLength => 10,
     :batchSize => 64,
     :numEpochs => 100,
     :corpusPath => string(pwd(), "/dat/nlu/xliuhw/AnnotatedData/NLU-Data-Home-Domain-Annotated-All.csv"),
@@ -105,6 +105,8 @@ function train(options)
     wordIndex = Dict{String,Int}(x => i for (i, x) in enumerate(vocabulary))
     saveIndex(labelIndex, options[:labelPath])
     saveIndex(wordIndex, options[:wordPath])
+    @info "#(vocab)  = $(length(vocabulary))"
+    @info "#(labels) = $(length(labels))"
 
     # define a model for sentence encoding
     encoder = Chain(
@@ -117,6 +119,7 @@ function train(options)
     # the loss function on a batch
     function loss(Xb, Yb)
         Ŷb = encoder(Xb)
+        Flux.reset!(encoder)
         return Flux.logitcrossentropy(Ŷb, Yb)
     end
 
