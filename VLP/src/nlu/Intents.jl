@@ -2,7 +2,7 @@
 # We use the dataset at https://github.com/xliuhw/NLU-Evaluation-Data
 # phuonglh@gmail.com
 
-module Intents
+#module Intents
 
 using CSV
 using DataFrames
@@ -12,16 +12,17 @@ using BSON: @save, @load
 using FLoops
 
 include("Embedding.jl")
+include("GRU3.jl")
 include("Utils.jl")
 
 options = Dict{Symbol,Any}(
     :minFreq => 2,
     :vocabSize => 2^16,
     :wordSize => 50,
-    :hiddenSize => 64,
-    :maxSequenceLength => 40,
-    :batchSize => 32,
-    :numEpochs => 20,
+    :hiddenSize => 128,
+    :maxSequenceLength => 15,
+    :batchSize => 64,
+    :numEpochs => 100,
     :corpusPath => string(pwd(), "/dat/nlu/xliuhw/AnnotatedData/NLU-Data-Home-Domain-Annotated-All.csv"),
     :modelPath => string(pwd(), "/dat/nlu/model.bson"),
     :wordPath => string(pwd(), "/dat/nlu/word.txt"),
@@ -66,13 +67,13 @@ end
     are stacked as 3-d matrices where the 3-rd dimention is the batch one.
 """
 function batch(df::DataFrame, wordIndex::Dict{String,Int}, labelIndex::Dict{String,Int}, options)
-    X, Y = Array{Array{Int,2},1}(), Array{Array{Int,1},1}()
-    paddingX = [wordIndex[options[:paddingX]]]
+    X, Y = Array{Array{Int,1},1}(), Array{Array{Int,1},1}()
+    paddingX = wordIndex[options[:paddingX]]
     sentences = map(sentence -> string.(split(sentence, options[:delimiters])), df[:, :text])
     labels = df[:, :intent]
     for i = 1:length(sentences)
         sentence = sentences[i]
-        xs = map(token -> [get(wordIndex, lowercase(token), 1)], sentence)
+        xs = map(token -> get(wordIndex, lowercase(token), 1), sentence)
         ys = Flux.onehot(get(labelIndex, labels[i], 1), 1:length(labelIndex), 1)
         # truncate or pad the sample to have maxSequenceLength
         if length(xs) > options[:maxSequenceLength]
@@ -81,8 +82,8 @@ function batch(df::DataFrame, wordIndex::Dict{String,Int}, labelIndex::Dict{Stri
         for t=length(xs)+1:options[:maxSequenceLength]
             push!(xs, paddingX)
         end
-        push!(X, Flux.batch(xs))
-        push!(Y, Flux.batch(ys))
+        push!(X, xs)
+        push!(Y, ys)
     end
     # build batches of data for training
     Xb = Iterators.partition(X, options[:batchSize])
@@ -108,16 +109,21 @@ function train(options)
     # define a model for sentence encoding
     encoder = Chain(
         Embedding(min(length(wordIndex), options[:vocabSize]), options[:wordSize]),
-        GRU(options[:wordSize], options[:hiddenSize]),
-        xs -> xs[:, end],
+        GRU3(options[:wordSize], options[:hiddenSize]),
         Dense(options[:hiddenSize], length(labelIndex))
     )
+    @info "Total weight of initial word embeddings = $(sum(encoder[1].W))"
+
     # the loss function on a batch
-    loss(Xb, Yb) = sum(Flux.logitcrossentropy.(encoder(Xb), Yb))
+    function loss(Xb, Yb)
+        Ŷb = encoder(Xb)
+        return Flux.logitcrossentropy(Ŷb, Yb)
+    end
 
     Xs, Ys = batch(df, wordIndex, labelIndex, options)
     dataset = collect(zip(Xs, Ys))
 
+    @info string("Number of batches = ", length(dataset))
     optimizer = ADAM()
     evalcb = function()
         ℓ = sum(loss(dataset[i]...) for i=1:length(dataset))
@@ -128,7 +134,7 @@ function train(options)
     # save the model to a BSON file
     @save options[:modelPath] encoder
 
-    @info "Total weight of final word embeddings = $(sum(encoder[1].word.W))"
+    @info "Total weight of final word embeddings = $(sum(encoder[1].W))"
     @info "Evaluating the model on the training set..."
     accuracy = evaluate(encoder, Xs, Ys, options)
     @info "Training accuracy = $accuracy"
@@ -137,17 +143,14 @@ end
 
 function evaluate(encoder, Xs, Ys, options)
     numBatches = length(Xs)
-    # normally, size(X,3) is the batch size except the last batch
     @floop ThreadedEx(basesize=numBatches÷options[:numCores]) for i=1:numBatches
-        b = size(Xs[i],3)
-        Flux.reset!(encoder)
-        Ŷb = Flux.onecold.(encoder(Xs[i][:,:,t]) for t=1:b)
-        Yb = Flux.onecold.(Ys[i][:,t] for t=1:b)
-        matches += sum(Ŷb .== Yb)
-        @reduce(numMatches += matches, numSents += b)
+        Ŷb = Flux.onecold(encoder(Xs[i]))
+        Yb = Flux.onecold(Ys[i])
+        matches = sum(Ŷb .== Yb)
+        @reduce(numMatches += matches, numSents += length(Yb))
     end
     @info "Total matches = $(numMatches)/$(numSents)"
     return 100 * (numMatches/numSents)
 end
 
-end # module
+#end # module

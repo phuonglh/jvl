@@ -77,11 +77,14 @@ function run(options)
     # architectures
     as = [false, true]
     # word embedding dimensions
-    ws = [25, 50, 100] 
+    #ws = [25, 50, 100]
+    ws = [100] 
     # recurrent dimensions
-    rs = [16, 32, 64, 100, 128, 150, 200, 256]
+    #rs = [16, 32, 64, 100, 128, 150, 200, 256]
+    rs = [128, 150, 200, 256]
     # hidden layer dimensions
-    hs = [64, 128, 256]
+    # hs = [64, 128, 256]
+    hs = [128]
     options[:scorePath] = string(options[:scorePath], ".ex")
     for a in as
         for w in ws

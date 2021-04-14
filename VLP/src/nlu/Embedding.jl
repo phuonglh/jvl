@@ -15,8 +15,15 @@ end
 Embedding(inp::Int, out::Int) = Embedding(rand(Float32, out, inp))
 
 # overload call, so the object can be used as a function
-# x is a word index (1 <= x < vocabSize)
-(f::Embedding)(x) = f.W[:,x]
+# x is a word index (1 <= x < vocabSize) or a vector of word indices
+(f::Embedding)(x::Int) = f.W[:,x]
+
+# x is a vector of word indices
+(f::Embedding)(x::Array{Int,1}) = f.W[:,x]
+
+# x is a matrix of word indices
+(f::Embedding)(x::Array{Int,2}) = f.W[:,x]
+
 
 # make the embedding layer trainable
 Flux.@functor Embedding
