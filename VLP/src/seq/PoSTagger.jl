@@ -55,7 +55,7 @@ end
 
     Create batches of data for training or evaluating. Each batch contains a pair (Xb, Yb) where 
     Xb is an array of matrices of size (featuresPerToken x maxSequenceLength). Each column of Xb is a vector representing a token.
-    If a sentence is shorter than maxSequenceLength, it is padded with vectors of ones. To speed up the computation, Xb and Yb 
+    If a sentence is shorter than maxSequenceLength, it is padded. To speed up the computation, Xb and Yb 
     are stacked as 3-d matrices where the 3-rd dimention is the batch one.
 """
 function batch(sentences::Array{Sentence}, wordIndex::Dict{String,Int}, shapeIndex::Dict{String,Int}, posIndex::Dict{String,Int}, labelIndex::Dict{String,Int}, options=optionsVUD)
