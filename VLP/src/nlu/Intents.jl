@@ -1,5 +1,6 @@
 # Intent Detection module in Julia
 # We use the dataset at https://github.com/xliuhw/NLU-Evaluation-Data
+# April, 2021 for a demonstration purpose.
 # phuonglh@gmail.com
 
 #module Intents
@@ -10,6 +11,7 @@ using Flux
 using Flux: @epochs
 using BSON: @save, @load
 using FLoops
+using Random
 
 include("Embedding.jl")
 include("GRU3.jl")
@@ -22,8 +24,9 @@ options = Dict{Symbol,Any}(
     :hiddenSize => 64,
     :maxSequenceLength => 10,
     :batchSize => 64,
-    :numEpochs => 100,
-    :corpusPath => string(pwd(), "/dat/nlu/xliuhw/AnnotatedData/NLU-Data-Home-Domain-Annotated-All.csv"),
+    :numEpochs => 40,
+    # :corpusPath => string(pwd(), "/dat/nlu/xliuhw/AnnotatedData/NLU-Data-Home-Domain-Annotated-All.csv"),
+    :corpusPath => string(pwd(), "/dat/nlu/xliuhw/AnnotatedData/NLU-Data-Home-Domain-Annotated-All.csv.sample"),
     :modelPath => string(pwd(), "/dat/nlu/model.bson"),
     :wordPath => string(pwd(), "/dat/nlu/word.txt"),
     :labelPath => string(pwd(), "/dat/nlu/label.txt"),
@@ -34,9 +37,14 @@ options = Dict{Symbol,Any}(
     :delimiters => r"[-@…–~`'“”’‘|\/$.,:;!?'\u0022\s_]"
 )
 
-function readCorpus(path::String)::DataFrame
+"""
+    readCorpus(path, sampling=true)
+
+    Reads an intent corpus given in a path and return a dataframe of two columns (`intent` and `text`).
+"""
+function readCorpus(path::String, sampling::Bool=true)::DataFrame
     df = DataFrame(CSV.File(path))
-    ef = select(df, :intent => :intent, :answer => :text)
+    ef = if !sampling select(df, :intent => :intent, :answer => :text) else df end
     dropmissing!(ef)
 end
 
@@ -156,4 +164,19 @@ function evaluate(encoder, Xs, Ys, options)
     return 100 * (numMatches/numSents)
 end
 
+
+"""
+    sampling(df)
+
+    Takes a random subset of a given number of samples and save to an output file.
+"""
+function sampling(df, numSamples::Int=5000)
+    n = nrow(df)
+    x = shuffle(1:n)
+    sample = df[x[1:numSamples], :]
+    CSV.write(string(options[:corpusPath], ".sample"), sample)
+    return sample
+end
+
 #end # module
+
