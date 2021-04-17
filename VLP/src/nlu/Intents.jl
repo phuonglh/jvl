@@ -12,6 +12,7 @@ using Flux: @epochs
 using BSON: @save, @load
 using FLoops
 using Random
+using Plots
 
 include("Embedding.jl")
 include("GRU3.jl")
@@ -24,7 +25,7 @@ options = Dict{Symbol,Any}(
     :hiddenSize => 64,
     :maxSequenceLength => 10,
     :batchSize => 64,
-    :numEpochs => 40,
+    :numEpochs => 50,
     # :corpusPath => string(pwd(), "/dat/nlu/xliuhw/AnnotatedData/NLU-Data-Home-Domain-Annotated-All.csv"),
     :corpusPath => string(pwd(), "/dat/nlu/xliuhw/AnnotatedData/NLU-Data-Home-Domain-Annotated-All.csv.sample"),
     :modelPath => string(pwd(), "/dat/nlu/model.bson"),
@@ -34,7 +35,8 @@ options = Dict{Symbol,Any}(
     :verbose => false,
     :unknown => "[UNK]",
     :paddingX => "[PAD_X]",
-    :delimiters => r"[-@…–~`'“”’‘|\/$.,:;!?'\u0022\s_]"
+    :delimiters => r"[-@…–~`'“”’‘|\/$.,:;!?'\u0022\s_]",
+    :split => [0.8, 0.2]
 )
 
 """
@@ -105,9 +107,15 @@ end
 
 function train(options)
     df = readCorpus(options[:corpusPath])
-    labels = unique(df[:, :intent])
+    # random split df for training/test data
+    n = nrow(df)
+    xs = shuffle(1:n)
+    j = Int(round(n*options[:split][2]))
+    dfV = df[1:j, :]    # test part
+    dfU = df[j+1:n, :]  # training part
+    labels = unique(dfU[:, :intent])
     labelIndex = Dict{String,Int}(x => i for (i, x) in enumerate(labels))
-    vocabulary = vocab(df, options)
+    vocabulary = vocab(dfU, options)
     prepend!(vocabulary, [options[:unknown]])
     append!(vocabulary, [options[:paddingX]])
     wordIndex = Dict{String,Int}(x => i for (i, x) in enumerate(vocabulary))
@@ -131,25 +139,36 @@ function train(options)
         return Flux.logitcrossentropy(Ŷb, Yb)
     end
 
-    Xs, Ys = batch(df, wordIndex, labelIndex, options)
-    dataset = collect(zip(Xs, Ys))
+    Xs, Ys = batch(dfU, wordIndex, labelIndex, options)    
+    trainingData = collect(zip(Xs, Ys))
+    Xv, Yv = batch(dfV, wordIndex, labelIndex, options)    
+    testData = collect(zip(Xv, Yv))
 
-    @info string("Number of batches = ", length(dataset))
+    @info string("Number of batches = ", length(trainingData))
     optimizer = ADAM()
+    accuracy = Array{Tuple{Float64,Float64},1}()
     evalcb = function()
-        ℓ = sum(loss(dataset[i]...) for i=1:length(dataset))
-        accuracy = evaluate(encoder, Xs, Ys, options)
-        @info string("loss = ", ℓ, ", training accuracy = ", accuracy)
+        ℓ = sum(loss(trainingData[i]...) for i=1:length(trainingData))
+        a = evaluate(encoder, Xs, Ys, options)
+        b = evaluate(encoder, Xv, Yv, options)
+        @info string("loss = ", ℓ, ", training accuracy = ", a, ", test accuracy = ", b)
+        push!(accuracy, (a, b))
     end
-    @epochs options[:numEpochs] Flux.train!(loss, params(encoder), dataset, optimizer, cb = Flux.throttle(evalcb, 60))
+    @epochs options[:numEpochs] Flux.train!(loss, params(encoder), trainingData, optimizer, cb = Flux.throttle(evalcb, 60))
     # save the model to a BSON file
     @save options[:modelPath] encoder
 
     @info "Total weight of final word embeddings = $(sum(encoder[1].W))"
     @info "Evaluating the model on the training set..."
-    accuracy = evaluate(encoder, Xs, Ys, options)
-    @info "Training accuracy = $accuracy"
-
+    a = evaluate(encoder, Xs, Ys, options)
+    b = evaluate(encoder, Xv, Yv, options)
+    @info "Training accuracy = $a, test accuracy = $b"
+    push!(accuracy, (a, b))
+    # plot the accuracy scores
+    @info "Plotting score figure..."
+    as, bs = map(p -> p[1], accuracy), map(p -> p[2], accuracy)
+    plot(1:length(accuracy), [as, bs], xlabel="iterations", ylabel="accuracy", label=["train." "test"], lw=2)
+    return encoder, accuracy
 end
 
 function evaluate(encoder, Xs, Ys, options)
