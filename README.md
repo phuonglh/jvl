@@ -1,7 +1,8 @@
-# 0. Introduction
+# Introduction
 
 This software package implements some fundamental NLP tasks in the Julia programming language. Tasks which have been implemented so far include:
 
+- intent detection
 - word segmentation (for Vietnamese)
 - part-of-speech tagging
 - named entity recognition
@@ -10,7 +11,7 @@ This software package implements some fundamental NLP tasks in the Julia program
 
 All machine learning models are based on neural networks, either multi-layer perceptron (MLP) or recurrent neural networks (RNN) with LSTM and GRU variants, or attentional sequence to sequence models. 
 
-# 1. Part-of-Speech Tagging
+# Part-of-Speech Tagging
 
 An implementation of GRU models for part-of-speech tagging is provided in `seq/PoSTagger.jl`. The general pipeline is `EmbeddingWSP -> GRU -> Dense` where both words, word shapes and universal parts-of-speech tokens are embedded and concatenated before feeding to a GRU layer. Embedding dimensions are specified in `seq/Options.jl`. Each option is simply a dictionary with key and value pairs.
 
@@ -20,13 +21,13 @@ Data sets are universal dependency treebanks with available training/dev./test s
 - The English Web Treebank (EWT) is used to train an English part-of-speech tagger (`optionsEWT`).
 - The Bahasa Indonesia Universal Dependency treebank (GSD) is used to train a Bahasa Indonesian part-of-speech tagger (`optionsGSD`).
 
-## 1.1. Experiment
+## Experiment
 
 The resulting files will be saved to paths of `dat/pos/$lang-` where `lang` can be `eng`, `vie` or `ind`, etc. 
 
 To train a tagger, run the file `seq/PoSTagger.jl`. Update the options if necessary. Then run the function `train(options)`, where `options` is the selected options for a language as described above. 
 
-## 1.2. Vietnamese Accuracy (VLSP-2010 treebank)
+## Vietnamese Accuracy (VLSP-2010 treebank)
 
 - Number of training sentences: 8,132 (random split with ratios [0.8, 0.1, 0.1])
 - Number of development sentences: 1,016
@@ -40,7 +41,7 @@ To train a tagger, run the file `seq/PoSTagger.jl`. Update the options if necess
 | 100 | 128 | 0.9053 | 0.8586 | 0.8625 | 6,078 (s) Jupiter |
 
 
-## 1.3. Vietnamese Accuracy (UD treebank)
+## Vietnamese Accuracy (UD treebank)
 
 - Number of training sentences: 1,400
 - Number of development sentences: 800
@@ -53,7 +54,7 @@ To train a tagger, run the file `seq/PoSTagger.jl`. Update the options if necess
 | 25 | 64 | 0.9764 | 0.9652 | 0.9555 | 676 (s) MBP |
 | 50 | 64 | 0.9797 | 0.9700 | 0.9573 | 1,127 (s) MPB |
 
-## 1.4. Bahasa Indonesia Accuracy
+## Bahasa Indonesia Accuracy
 
 - Number of training sentences: 4,094 (with length not greater than 40)
 - Number of development sentences: 490
@@ -70,7 +71,7 @@ To train a tagger, run the file `seq/PoSTagger.jl`. Update the options if necess
 | 50 | 64 | 0.9987 | 0.9137 | 0.9094 | 4,384 (s) FPT |
 
 
-# 2. Named Entity Recognition
+# Named Entity Recognition
 
 An implementation of GRU models for named entity recognition is provided in `seq/NameTagger.jl`. The general pipeline is the same as the part-of-speech tagging module, that is `EmbeddingWSP -> GRU -> Dense`. The embedding layer projects words, word shapes, and part-of-speech tags and concatenates these embedding vectors before feeding them to the recurrent layer.
 
@@ -80,7 +81,7 @@ Training data sets come from different sources:
 - The CoNLL 2003 corpus for training English named entity tagger (`optionsCoNLL2003`).
 - The KIK 2020 corpus for training Bahasa Indonesia named entity tagger (`optionsKIK2020`).
 
-## 2.1. Experiment
+## Experiment
 
 The resulting files will be saved to paths of `dat/ner/$lang-` where `lang` can be `eng`, `vie` or `ind`, etc. 
 
@@ -98,7 +99,7 @@ To train a tagger, run the file `seq/NameTagger.jl`. Update the options if neces
     NameTagger.evaluate(encoder, options)
 ```
 
-## 2.2. Vietnamese VLSP-2016 Accuracy
+## Vietnamese VLSP-2016 Accuracy
 
 - Number of training sentences: 16,858 (with length not greater than 40)
 - Number of development sentences: 2,831
@@ -116,7 +117,7 @@ To train a tagger, run the file `seq/NameTagger.jl`. Update the options if neces
 | 100 | 64 | 0.6637 | 0.4554 | 0.4554 | 30,618 (s) Jupiter |
 | 100 | 128| 0.7090 | 0.4343 | 0.4343 | 40,645 (s) Jupiter |
 
-## 2.3. English CoNLL-2003 Accuracy
+## English CoNLL-2003 Accuracy
 
 - Number of training sentences: 14,987 (with length not greater than 40)
 - Number of development sentences: 3,466
@@ -131,7 +132,7 @@ To train a tagger, run the file `seq/NameTagger.jl`. Update the options if neces
 | 100 | 128 | 0.8460 | 0.6227 | 0.5051 | 37,604 (s) Jupiter | 
 | 100 | 256 | 0.8270 | 0.6225 | 0.4984 | 39,825 (s) Jupiter | 
 
-## 2.4. Bahasa Indonesia-2020 Accuracy
+## Bahasa Indonesia-2020 Accuracy
 
 - Number of training sentences: 1,463 (with length not greater than 40)
 - Number of development sentences: 366
@@ -145,7 +146,7 @@ To train a tagger, run the file `seq/NameTagger.jl`. Update the options if neces
 | 100 | 64 | 0.7741 | 0.5662 | 0.5262 | 3,752 (s) MBP | 
 | 100 | 128| 0.8044 | 0.5243 | 0.5049 | 1,131 (s) Jupiter |
 
-# 3. Dependency Parsing
+# Dependency Parsing
 
 An implementation of arc-eager dependency parsing algorithm is provided in module `tdp`. The transition classifier use a 
 MLP with the following pipeline: 
@@ -163,7 +164,7 @@ Data sets are universal dependency treebanks with available training/dev./test s
 - The English Web Treebank (EWT) is used to train an English part-of-speech tagger (`optionsEWT`).
 - The Bahasa Indonesia Universal Dependency treebank (GSD) is used to train a Bahasa Indonesian part-of-speech tagger (`optionsGSD`).
 
-## 3.1. Experiment
+## Experiment
 
 To train a model, run the file `tdp/Classifier.jl`, then invoke the function `train(options)` with a desired options for a language. The resulting files will be saved to subdirectories of `dat/tdp/$lang-` where `lang` can be `eng`, `vie` or `ind`, etc. 
 
@@ -206,7 +207,7 @@ After training a classifier, invoke the parser to parse or evaluate its accuracy
 ```
 
 
-## 3.2. Bahasa Indonesia Accuracy
+## Bahasa Indonesia Accuracy
 
 - Number of training sentences: 4,4094 (with length not greater than 40), resulting in 135,155 training samples for transition classification;
 - Number of development sentences: 490 (15,757 validation samples)
@@ -225,7 +226,7 @@ After training a classifier, invoke the parser to parse or evaluate its accuracy
 | 100 | 128 | 0.7601 | 0.5851 | ? | 3,591 (s) T480s | 6 |
 
 
-## 3.3. Vietnamese Accuracy
+## Vietnamese Accuracy
 
 - Number of training sentences: 1,400 (35,888 contexts)
 - Number of development sentences: 800 (20,321 contexts)
@@ -242,7 +243,7 @@ After training a classifier, invoke the parser to parse or evaluate its accuracy
 | 100 | 128 | 0.8309 | 0.5685 | 0.5514 | 1,204 (s) MBP | 13 | 0.6409 | 0.5907 | 0.3932 | 0.3127 | 0.3706 | 0.2851 | 
 | 100 | 256 | 0.7419 | 0.5492 | 0.5371 | 929 (s) MBP | 10 | 0.4135 | 0.3861 | 0.2699 | 0.2211 | 0.2627 | 0.2093 | 
 
-# 4. Arc-Eager Parsing (AEP)
+# Arc-Eager Parsing (AEP)
 
 Train and evaluate the transition classifier:
 
@@ -285,7 +286,7 @@ Perform experiments:
     # open the result file `/dat/aep/$lang-score.jsonl`
 ```
 
-# 5. Graph Embedding
+# Graph Embedding
 
 To train graph embeddings for a language:
 
@@ -293,7 +294,7 @@ To train graph embeddings for a language:
 - Run this file.
 - The output should be saved in `dat/emb/`.
 
-# 6. Extended Graph Embedding Features for AEP
+# Extended Graph Embedding Features for AEP
 
 Train and evaluate the extended transition classifier:
 
