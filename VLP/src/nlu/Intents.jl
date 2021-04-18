@@ -128,7 +128,7 @@ function train(options)
     encoder = Chain(
         Embedding(min(length(wordIndex), options[:vocabSize]), options[:wordSize]),
         GRU3(options[:wordSize], options[:hiddenSize]),
-        Dense(options[:hiddenSize], length(labelIndex))
+        Dense(options[:hiddenSize], length(labels))
     )
     @info "Total weight of initial word embeddings = $(sum(encoder[1].W))"
 
@@ -165,9 +165,9 @@ function train(options)
     @info "Training accuracy = $a, test accuracy = $b"
     push!(accuracy, (a, b))
     # plot the accuracy scores
-    @info "Plotting score figure..."
-    as, bs = map(p -> p[1], accuracy), map(p -> p[2], accuracy)
-    plot(1:length(accuracy), [as, bs], xlabel="iterations", ylabel="accuracy", label=["train." "test"], lw=2)
+    # @info "Plotting score figure..."
+    # as, bs = map(p -> p[1], accuracy), map(p -> p[2], accuracy)
+    # plot(1:length(accuracy), [as, bs], xlabel="iterations", ylabel="accuracy", label=["train." "test"], legend=:bottomright, lw=2)
     return encoder, accuracy
 end
 
@@ -189,7 +189,7 @@ end
 
     Takes a random subset of a given number of samples and save to an output file.
 """
-function sampling(df, numSamples::Int=5000)
+function sampling(df, numSamples::Int=10000)
     n = nrow(df)
     x = shuffle(1:n)
     sample = df[x[1:numSamples], :]
