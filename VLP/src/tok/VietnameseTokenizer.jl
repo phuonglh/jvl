@@ -67,7 +67,7 @@ function shape(word::String)::String
     for brick in bricks
         m = match(brick.regexp, word) 
         if m !== nothing
-        return brick.name
+            return brick.name
         end
     end
     return "UNK"

@@ -18,6 +18,10 @@ include("Embedding.jl")
 include("GRU3.jl")
 include("Utils.jl")
 
+include("../tok/VietnameseTokenizer.jl")
+using .VietnameseTokenizer
+
+
 options = Dict{Symbol,Any}(
     :minFreq => 1,
     :vocabSize => 2^16,
@@ -40,6 +44,25 @@ options = Dict{Symbol,Any}(
 )
 
 """
+    tokenize(utterance)
+
+    Tokenizes an utterance into tokens, replacing common tokens by their shape, including 
+    email, number, url, date, time, currency, punct.
+"""
+function tokenize(utterance::String)::Array{String}
+    function transform(token::VietnameseTokenizer.Token)::String
+        s = VietnameseTokenizer.shape(token.text)
+        if s == "phrase" || s == "allcap" || s == "capital" || s == "name" || s == "UNK"
+            return lowercase(token.text)
+        else
+            return string("{", s, "}")
+        end
+    end
+    tokens = VietnameseTokenizer.tokenize(utterance)
+    map(token -> transform(token), tokens)
+end
+
+"""
     readCorpus(path, sampling=true)
 
     Reads an intent corpus given in a path and return a dataframe of two columns (`intent` and `text`).
@@ -57,11 +80,12 @@ end
     Only words whose count is greater than `minFreq` are kept. The corpus is in `df` with two columns: `intent` and `text`.
 """    
 function vocab(df::DataFrame, options)::Array{String}
-    sentences = df[:, :text]
-    tokens = Iterators.flatten(map(sentence -> string.(split(sentence, options[:delimiters])), sentences))
+    sentences = df[:,:text]
+    # tokens = Iterators.flatten(map(sentence -> string.(split(lowercase(sentence), options[:delimiters])), sentences))
+    tokens = Iterators.flatten(map(sentence -> tokenize(sentence), sentences))
     wordFrequency = Dict{String, Int}()
     for token in tokens
-        word = lowercase(strip(token))
+        word = strip(token)
         haskey(wordFrequency, word) ? wordFrequency[word] += 1 : wordFrequency[word] = 1
     end
     filter!(p -> p.second >= options[:minFreq], wordFrequency)
@@ -79,7 +103,8 @@ end
 function batch(df::DataFrame, wordIndex::Dict{String,Int}, labelIndex::Dict{String,Int}, options)
     X, Y = Array{Array{Int,1},1}(), Array{Array{Int,1},1}()
     paddingX = wordIndex[options[:paddingX]]
-    sentences = map(sentence -> string.(split(sentence, options[:delimiters])), df[:, :text])
+    # sentences = map(sentence -> string.(split(lowercase(sentence), options[:delimiters])), df[:, :text])
+    sentences = map(sentence -> tokenize(sentence), df[:,:text])
     labels = df[:, :intent]
     for i = 1:length(sentences)
         sentence = sentences[i]
@@ -108,12 +133,13 @@ end
 function train(options)
     df = readCorpus(options[:corpusPath])
     # random split df for training/test data
+    Random.seed!(220712)
     n = nrow(df)
     xs = shuffle(1:n)
     j = Int(round(n*options[:split][2]))
-    dfV = df[1:j, :]    # test part
-    dfU = df[j+1:n, :]  # training part
-    labels = unique(dfU[:, :intent])
+    dfV = df[1:j,:]    # test part
+    dfU = df[j+1:n,:]  # training part
+    labels = unique(dfU[:,:intent])
     labelIndex = Dict{String,Int}(x => i for (i, x) in enumerate(labels))
     vocabulary = vocab(dfU, options)
     prepend!(vocabulary, [options[:unknown]])
