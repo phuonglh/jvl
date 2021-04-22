@@ -3,7 +3,7 @@
 # April, 2021 for a demonstration purpose.
 # phuonglh@gmail.com
 
-#module Intents
+module Intents
 
 using CSV
 using DataFrames
@@ -27,7 +27,7 @@ options = Dict{Symbol,Any}(
     :minFreq => 1,
     :vocabSize => 2^16,
     :wordSize => 20,
-    :hiddenSize => 64,
+    :hiddenSize => 128,
     :maxSequenceLength => 10,
     :batchSize => 64,
     :numEpochs => 50,
@@ -190,7 +190,26 @@ function train(options)
         @info string("loss = ", ℓ, ", training accuracy = ", a, ", test accuracy = ", b)
         push!(accuracy, (a, b))
     end
-    @time @epochs options[:numEpochs] Flux.train!(loss, params(encoder), trainingData, optimizer, cb = Flux.throttle(evalcb, 60))
+    # train the model until the validation accuracy decreases 2 consecutive times
+    t, k = 1, 0
+    bestDevAccuracy = 0
+    @time while (t <= options[:numEpochs]) 
+        @info "Epoch $t, k = $k"
+        Flux.train!(loss, params(encoder), trainingData, optimizer, cb = Flux.throttle(evalcb, 60))
+        devAccuracy = evaluate(encoder, Xv, Yv, options)
+        if bestDevAccuracy < devAccuracy
+            bestDevAccuracy = devAccuracy
+            k = 0
+        else
+            k = k + 1
+            if (k == 3)
+                @info "Stop training because current accuracy is smaller than the best accuracy: $(devAccuracy) < $(bestDevAccuracy)."
+                break
+            end
+        end
+        @info "bestDevAccuracy = $bestDevAccuracy"
+        t = t + 1
+    end
     # save the model to a BSON file
     if options[:gpu]
         encoder = encoder |> cpu
@@ -253,7 +272,7 @@ function predict(encoder, Xs, labelMap::Dict{Int,String})
     numBatches = length(Xs)
     result = Array{Array{String,1},1}()
     for i=1:numBatches
-        Ŷb = Flux.onecold(encoder(Xs[i]) |> cpu)
+        Ŷb = Flux.onecold(encoder(Xs[i]))
         Lb = map(ys -> map(y -> labelMap[y], ys), Ŷb) 
         push!(result, Lb)
     end
@@ -301,5 +320,24 @@ function predict(encoder, df, options)
     return predict(encoder, Xs, labelMap)
 end
 
-#end # module
+"""
+    predict(encoder, utterance, wordIndex, labelMap)
+
+    Predicts the intent of an utterance. This function is useful for building web service API.
+"""
+function predict(encoder, utterance::String, wordIndex::Dict{String,Int}, labelMap::Dict{Int,String})
+    sentence = tokenize(utterance)
+    xs = map(token -> get(wordIndex, lowercase(token), 1), sentence)
+    if length(xs) > options[:maxSequenceLength]
+        xs = xs[1:options[:maxSequenceLength]]
+    end
+    for t=length(xs)+1:options[:maxSequenceLength]
+        push!(xs, wordIndex[options[:paddingX]])
+    end
+    Xs = Int.(Flux.batch([xs]))
+    j = Flux.onecold(encoder(Xs))[1]
+    return labelMap[j]
+end
+
+end # module
 
