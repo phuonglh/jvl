@@ -5,6 +5,7 @@
 =#
 
 using Flux
+using CUDA
 
 # Each embedding layer contains a matrix of all word vectors, 
 # each column is the vector of the corresponding word index.
@@ -20,9 +21,11 @@ Embedding(inp::Int, out::Int) = Embedding(rand(Float32, out, inp))
 
 # x is a vector of word indices
 (f::Embedding)(x::Array{Int,1}) = f.W[:,x]
+(f::Embedding)(x::CuArray{Int,1}) = f.W[:,x]
 
 # x is a matrix of word indices
 (f::Embedding)(x::Array{Int,2}) = f.W[:,x]
+(f::Embedding)(x::CuArray{Int,2}) = f.W[:,x]
 
 
 # make the embedding layer trainable

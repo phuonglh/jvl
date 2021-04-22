@@ -13,6 +13,7 @@ using BSON: @save, @load
 using FLoops
 using Random
 using Plots
+using CUDA
 
 include("Embedding.jl")
 include("GRU3.jl")
@@ -40,7 +41,8 @@ options = Dict{Symbol,Any}(
     :unknown => "[UNK]",
     :paddingX => "[PAD_X]",
     :delimiters => r"[-@…–~`'“”’‘|\/$.,:;!?'\u0022\s_]",
-    :split => [0.8, 0.2]
+    :split => [0.8, 0.2],
+    :gpu => false
 )
 
 """
@@ -169,8 +171,16 @@ function train(options)
     trainingData = collect(zip(Xs, Ys))
     Xv, Yv = batch(dfV, wordIndex, labelIndex, options)    
     testData = collect(zip(Xv, Yv))
-
-    @info string("Number of batches = ", length(trainingData))
+    @info string("Number of training batches = ", length(trainingData))
+    @info string("Number of test batches = ", length(testData))
+    # bring data and model to GPU if set
+    if options[:gpu]
+        @info "Moving data to GPU..."
+        trainingData = map(p -> p |> gpu, trainingData)
+        testData = map(p -> p |> gpu, testData)
+        @info "Moving model to GPU..."
+        encoder = encoder |> gpu
+    end
     optimizer = ADAM()
     accuracy = Array{Tuple{Float64,Float64},1}()
     evalcb = function()
@@ -180,8 +190,11 @@ function train(options)
         @info string("loss = ", ℓ, ", training accuracy = ", a, ", test accuracy = ", b)
         push!(accuracy, (a, b))
     end
-    @epochs options[:numEpochs] Flux.train!(loss, params(encoder), trainingData, optimizer, cb = Flux.throttle(evalcb, 60))
+    @time @epochs options[:numEpochs] Flux.train!(loss, params(encoder), trainingData, optimizer, cb = Flux.throttle(evalcb, 60))
     # save the model to a BSON file
+    if options[:gpu]
+        encoder = encoder |> cpu
+    end
     @save options[:modelPath] encoder
 
     @info "Total weight of final word embeddings = $(sum(encoder[1].W))"
@@ -197,30 +210,95 @@ function train(options)
     return encoder, accuracy
 end
 
+"""
+    evaluate(encoder, Xs, Ys, options)
+
+    Evaluates the accuracy of the classifier w/o using threaded execution.
+"""
 function evaluate(encoder, Xs, Ys, options)
     numBatches = length(Xs)
-    @floop ThreadedEx(basesize=numBatches÷options[:numCores]) for i=1:numBatches
-        Ŷb = Flux.onecold(encoder(Xs[i]))
-        Yb = Flux.onecold(Ys[i])
+    numMatches = 0
+    numSents = 0
+    for i=1:numBatches
+        Ŷb = Flux.onecold(encoder(Xs[i]) |> cpu) # fix an issue of Julia 1.5
+        Yb = Flux.onecold(Ys[i] |> cpu) 
         matches = sum(Ŷb .== Yb)
-        @reduce(numMatches += matches, numSents += length(Yb))
+        numMatches += matches
+        numSents += length(Yb)
     end
     @info "Total matches = $(numMatches)/$(numSents)"
     return 100 * (numMatches/numSents)
 end
 
+# function evaluate(encoder, Xs, Ys, options)
+#     numBatches = length(Xs)
+#     @floop ThreadedEx(basesize=numBatches÷options[:numCores]) for i=1:numBatches
+#         Ŷb = Flux.onecold(encoder(Xs[i]))
+#         Yb = Flux.onecold(Ys[i])  
+#         matches = sum(Ŷb .== Yb)
+#         @reduce(numMatches += matches, numSents += length(Yb))
+#     end
+#     @info "Total matches = $(numMatches)/$(numSents)"
+#     return 100 * (numMatches/numSents)
+# end
+
 
 """
-    sampling(df)
+    predict(encoder, Xs, labelMap)
 
-    Takes a random subset of a given number of samples and save to an output file.
+    Predicts the labels of input utterances and returns batches of predicted intents.
+    The `labelMap` is derived from a `labelIndex`, which maps an integer into an intent string. 
 """
-function sampling(df, numSamples::Int=10000)
-    n = nrow(df)
-    x = shuffle(1:n)
-    sample = df[x[1:numSamples], :]
-    CSV.write(string(options[:corpusPath], ".sample"), sample)
-    return sample
+function predict(encoder, Xs, labelMap::Dict{Int,String})
+    numBatches = length(Xs)
+    result = Array{Array{String,1},1}()
+    for i=1:numBatches
+        Ŷb = Flux.onecold(encoder(Xs[i]) |> cpu)
+        Lb = map(ys -> map(y -> labelMap[y], ys), Ŷb) 
+        push!(result, Lb)
+    end
+    return result
+end
+
+"""
+    predict(encoder, utterances, options)
+
+    Predicts the intents of given utterances using a trained model.
+"""
+function predict(encoder, utterances::Array{String,1}, options)
+    df = DataFrame(:text => utterances)
+    predict(encoder, df, options)
+end
+
+"""
+    predict(encoder, df, options)
+
+    Predicts the intents of utterances given in a data frame (with column :text).
+"""
+function predict(encoder, df, options)
+    wordIndex = loadIndex(options[:wordPath])
+    X = Array{Array{Int,1},1}()
+    paddingX = wordIndex[options[:paddingX]]
+    sentences = map(sentence -> tokenize(sentence), df[:,:text])
+    for i = 1:length(sentences)
+        sentence = sentences[i]
+        xs = map(token -> get(wordIndex, lowercase(token), 1), sentence)
+        if length(xs) > options[:maxSequenceLength]
+            xs = xs[1:options[:maxSequenceLength]]
+        end
+        for t=length(xs)+1:options[:maxSequenceLength]
+            push!(xs, paddingX)
+        end
+        push!(X, xs)
+    end
+    # build batches of data for evaluating
+    Xb = Iterators.partition(X, options[:batchSize])
+    # stack each input batch as a 3-d matrix
+    Xs = map(b -> Int.(Flux.batch(b)), Xb)
+    # build a label map from the loaded label index
+    labelIndex = loadIndex(options[:labelPath])
+    labelMap = Dict{Int,String}(labelIndex[label] => label for label in keys(labelIndex))
+    return predict(encoder, Xs, labelMap)
 end
 
 #end # module

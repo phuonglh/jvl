@@ -1,4 +1,7 @@
 using Random
+using DataFrames
+using CSV
+
 
 """
     saveIndex(index, path)
@@ -30,3 +33,15 @@ function loadIndex(path)::Dict{String,Int}
     return Dict(pair[1] => pair[2] for pair in pairs)
 end
 
+"""
+    sampling(df)
+
+    Takes a random subset of a given number of samples and save to an output file.
+"""
+function sampling(df, numSamples::Int=10000)
+    n = nrow(df)
+    x = shuffle(1:n)
+    sample = df[x[1:numSamples], :]
+    CSV.write(string(options[:corpusPath], ".sample"), sample)
+    return sample
+end
