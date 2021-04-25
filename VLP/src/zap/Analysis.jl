@@ -49,13 +49,13 @@ function aep(language::String="vie", ex::String="")::DataFrame
     )
 end
 
-function analyzeAEP(language::String="vie", ex::String="", unidirectional::Bool=true)
+function analyzeAEP(language::String="vie", ex::String="", bidirectional::Bool=false)
     df = aep(language, ex)
     hs = [64, 128, 256]
     for h in hs
-        u = if unidirectional ".u" else ".b"; end
+        u = if bidirectional ".b" else ".u"; end
         output = string("dat/aep/aep-", language, ".h", h, u, ex, ".txt")
-        ef = df[df.bi .== unidirectional, :] # filter unidirectional or bidirectional results
+        ef = df[df.bi .== bidirectional, :]
         ef = ef[ef.h .== h, :] # filter hidden size
         kf = groupby(ef, [:r, :w])
         gf = combine(kf, valuecols(kf) .=> (x -> round.(mean(x)*100, digits=2)))
@@ -71,8 +71,8 @@ end
     a word embedding size and a hidden size. The x-axis shows recurrent sizes and 
     the y-axis shows the LAS values.
 """
-function compareAEP(language::String="vie", w::Int=25, h::Int=64, unidirectional::Bool=true)
-    u = if unidirectional ".u" else ".b"; end
+function compareAEP(language::String="vie", w::Int=25, h::Int=64, bidirectional::Bool=false)
+    u = if bidirectional ".b" else ".u"; end
     output1 = string("dat/aep/aep-", language, ".h", h, u, ".txt")
     output2 = string("dat/aep/aep-", language, ".h", h, u, ".ex.txt")
     df1 = CSV.read(output1, DataFrame)

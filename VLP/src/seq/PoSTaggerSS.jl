@@ -301,7 +301,7 @@ function train(options::Dict{Symbol,Any}, lr=1E-4)
     @info "Training accuracy = $accuracy"
     accuracyValidation = evaluate(embedding, encoder, decoder, α, β, linear, Ubs, Vbs, Wbs, options)
     @info "Validation accuracy = $accuracyValidation"
-    machine
+    return machine
 end
 
 """
@@ -369,38 +369,41 @@ end
 # end
 
 
-# """
-#     predict(sentence, labelIndex)
+"""
+    predict(sentence, embedding, encoder, decoder, α, β, linear, wordIndex, shapeIndex, posIndex, labelIndex)
 
-#     Find the label sequence for a given sentence.
-# """
-# function predict(sentence, labelIndex::Dict{String,Int})
-#     Flux.reset!(machine)
-#     ps = [labelIndex["BOS"]]
-#     Xs, Y0s, Ys = batch([sentence], wordIndex, shapeIndex, posIndex, labelIndex)
-#     Xb = first(Xs)
-#     Hb = encode(Xb)
-#     Y0 = repeat(Flux.onehotbatch(ps, 1:numLabels), 1,size(Xb[1], 2))
-#     m = min(length(sentence.tokens), size(Xb[1], 2))
-#     for t=1:m
-#         currentY = Flux.onehot(ps[end], 1:numLabels)
-#         Y0[:,t] = currentY
-#         Y0b = [ Int.(Y0) ]
-#         output = decode(Hb, Y0b)
-#         Ŷ = softmax(output[1][:,t])
-#         # nextY = Flux.onecold(Ŷ)     # use a hard selection approach, always choose the label with the best probability
-#         nextY = wsample(1:numLabels, Ŷ) # use a soft selection approach to sample a label from the distribution
-#         push!(ps, nextY)
-#     end
-#     return vocabularies.labels[ps[2:end]]
-# end
+    Find the label sequence for a given sentence.
+"""
+function predict(sentence, embedding, encoder, decoder, α, β, linear, wordIndex, shapeIndex, posIndex, labelIndex)
+    Flux.reset!(encoder)
+    Flux.reset!(decoder)
+    numLabels = length(labelIndex)
+    ps = [labelIndex["BOS"]]
+    Xs, Y0s, Ys = batch([sentence], wordIndex, shapeIndex, posIndex, labelIndex)
+    Xb = first(Xs)
+    Hb = encode(Xb, embedding, encoder)
+    Y0 = repeat(Flux.onehotbatch(ps, 1:numLabels), 1, size(Xb[1], 2))
+    m = min(length(sentence.tokens), size(Xb[1], 2))
+    for t=1:m
+        currentY = Flux.onehot(ps[end], 1:numLabels)
+        Y0[:,t] = currentY
+        Y0b = [ Int.(Y0) ]
+        output = decode(Hb, Y0b, encoder, decoder, α, β)
+        score = linear.(output)
+        Ŷ = softmax(score[1][:,t])
+        # nextY = Flux.onecold(Ŷ)     # use a hard selection approach, always choose the label with the best probability
+        nextY = wsample(1:numLabels, Ŷ) # use a soft selection approach to sample a label from the distribution
+        push!(ps, nextY)
+    end
+    return ps[2:end]
+end
 
-# """
-#     predict(sentences, labelIndex)
-# """
-# function predict(sentences::Array{Sentence}, labelIndex::Dict{String,Int})
-#     map(sentence -> predict(sentence, labelIndex), sentences)
-# end
+"""
+    predict(sentences, labelIndex)
+"""
+function predict(sentences::Array{Sentence}, labelIndex::Dict{String,Int})
+    map(sentence -> predict(sentence, labelIndex), sentences)
+end
 
 # function diagnose(sentence)
 #     Xs, Y0s, Ys = batch([sentence], wordIndex, shapeIndex, posIndex, labelIndex)
