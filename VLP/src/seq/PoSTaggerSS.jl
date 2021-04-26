@@ -126,7 +126,8 @@ end
 """
 function decode(H::Array{Float32,2}, Y0::Array{Int,2}, encoder, decoder, α, β)
     # take the last state of the encoder as the init state for the decoder
-    decoder.init = encoder.state[:,end] 
+    # decoder.init = encoder.state[:,end] # old version of Flux
+    # decoder.cell.state0[:, end] = encoder.state[:, end]   # new version of Flux (as of April 2021)
     # decode positions, one by one
     y0s = [Y0[:, t] for t=1:size(Y0,2)]
     ŷs = [decode(H, y0, decoder, α, β) for y0 in y0s]
@@ -282,7 +283,7 @@ function train(options::Dict{Symbol,Any}, lr=1E-4)
             k = 0
         else
             k = k + 1
-            if (k == 5)
+            if (k == 3)
                 @info "Stop training because current accuracy is smaller than the best accuracy: $(devAccuracy) < $(bestDevAccuracy)."
                 break
             end

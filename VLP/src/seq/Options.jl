@@ -32,7 +32,7 @@ optionsVLSP2010 = Dict{Symbol,Any}(
 
 # For Vietnamese PoS tagging and dependency parsing on the Vietnamese UD treebank
 optionsVUD = Dict{Symbol,Any}(
-    :minFreq => 2,
+    :minFreq => 1,
     :lowercase => true,
     :vocabSize => 2^16,
     :wordSize => 25,
