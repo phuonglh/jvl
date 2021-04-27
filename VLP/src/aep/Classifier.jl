@@ -239,8 +239,9 @@ function train(options)
     write(file, "dev. loss,trainingAcc,devAcc\n")
     evalcb = function()
         devLoss = sum(loss(datasetDev[i]...) for i=1:length(datasetDev))
-        trainingAccuracy = evaluate(mlp, Xs, Ys)
-        devAccuracy = evaluate(mlp, XsDev, YsDev)
+        mlpc = mlp |> cpu
+        trainingAccuracy = evaluate(mlpc, Xs, Ys)
+        devAccuracy = evaluate(mlpc, XsDev, YsDev)
         @info string("\tdevLoss = $(devLoss), training accuracy = $(trainingAccuracy), development accuracy = $(devAccuracy)")
         write(file, string(devLoss, ',', trainingAccuracy, ',', devAccuracy, "\n"))
     end
