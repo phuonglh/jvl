@@ -240,11 +240,11 @@ function train(options::Dict{Symbol,Any}, lr=1E-4)
     # The full machinary
     machine = (embedding, encoder, attention, decoder, linear)
 
-    # Note that we need to explicitly program a loss function which does not take into account of padding label.
+    # We need to explicitly program a loss function which does not take into account of padding labels.
     # loss(Xb, Y0b, Yb) = sum(Flux.logitcrossentropy.(model(Xb, Y0b, embedding, encoder, decoder, α, β, linear), Yb))
     function loss(Xb, Y0b, Yb)
         Ŷb = model(Xb, Y0b, embedding, encoder, decoder, α, β, linear)
-        Zb = Flux.onecold.(Ŷb)
+        Zb = Flux.onecold.(Yb)
         J = 0
         for t=1:length(Yb)
             n = options[:maxSequenceLength]
