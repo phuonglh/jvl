@@ -1,3 +1,6 @@
+# phuonglh@gmail.com
+# For ML for Banking and Finance course
+
 using CSV
 using DataFrames
 using Statistics
@@ -5,15 +8,17 @@ using Flux
 using Flux: @epochs
 using Random
 using EvalMetrics
-
+using BSON: @save
 
 df = DataFrame(CSV.File("dat/vcb/creditcard.csv"))
 y = df[:, :Class]
-Xdf = df[:, setdiff(names(df), ["Time", "Amount", "Class"])]
+ef = transform(df, :Amount => x -> log.(x .+ 1E-3))
+Xdf = ef[:, setdiff(names(ef), ["Time", "Amount", "Class"])]
 
-μ⃗ = mean.(eachcol(Xdf))
-σ⃗ = std.(eachcol(Xdf))
-A = combine(x -> (x .- μ⃗') ./ σ⃗', Xdf)
+
+μ = mean.(eachcol(Xdf))
+s = std.(eachcol(Xdf))
+A = combine(x -> (x .- μ') ./ s', Xdf)
 X = Matrix(A)'
 
 # randomly permute the data set
@@ -34,7 +39,8 @@ dataset_train = Flux.Data.DataLoader((X_train, y_train), batchsize=2048)
 dataset_test = Flux.Data.DataLoader((X_test, y_test), batchsize=2048)
 
 # build model
-model = Chain(Dense(28, 16, relu), Dropout(0.5), Dense(16, 1, σ))
+D = size(X_train,1)
+model = Chain(Dense(D, 16, relu), Dropout(0.5), Dense(16, 1, σ))
 loss(x, y) = Flux.Losses.binarycrossentropy(model(x), y)
 
 
@@ -50,6 +56,7 @@ end
 # perform optimization
 optimizer = ADAM(1E-3)
 @epochs 30 Flux.train!(loss, Flux.params(model), dataset_train, optimizer, cb = Flux.throttle(cbf, 60))
+@save "dat/vcb/model.bson" model
 
 @info "Final evaluation on the training set: "
 ŷ_train = Iterators.flatten(map(x -> model(x), map(b -> first(b), dataset_train)))
@@ -63,8 +70,8 @@ cm_test = ConfusionMatrix(y_test, collect(ŷ_test) .>= 0.5)
 
 # plot the Precision-Recall and ROC plots
 #using Plots
-#prplot(y_train, ŷ_train)
-#rocplot(y_train, ŷ_train)
+prplot(y_train, collect(ŷ_train))
+rocplot(y_train, collect(ŷ_train))
 
 
 # struct ConfusionMatrix{T<:Real}
