@@ -4,7 +4,7 @@ using Statistics
 using Flux
 using Flux: @epochs
 using Random
-using EvalMtrics
+using EvalMetrics
 
 
 df = DataFrame(CSV.File("dat/vcb/creditcard.csv"))
@@ -23,14 +23,15 @@ X = X[:, js]
 y = y[js]
 
 # training/test split
-N_train = 10000
-N_test = 5000
+N_train = 100_000
+N_test = 10_000
 X_train, X_test = X[:, 1:N_train], X[:, (N_train + 1):(N_train + N_test)]
 y_train, y_test = y[1:N_train], y[(N_train + 1):(N_train + N_test)]
 
-# build data loaders
-dataset_train = Flux.Data.DataLoader((X_train, y_train), batchsize=64)
-dataset_test = Flux.Data.DataLoader((X_test, y_test), batchsize=64)
+# build data loaders; we use a large batch size to ensure that 
+# each batch has several positive samples to learn from
+dataset_train = Flux.Data.DataLoader((X_train, y_train), batchsize=2048)
+dataset_test = Flux.Data.DataLoader((X_test, y_test), batchsize=2048)
 
 # build model
 model = Chain(Dense(28, 16, relu), Dropout(0.5), Dense(16, 1, σ))
@@ -60,6 +61,10 @@ ŷ_test = Iterators.flatten(map(x -> model(x), map(b -> first(b), dataset_test)
 binary_eval_report(y_test, collect(ŷ_test))
 cm_test = ConfusionMatrix(y_test, collect(ŷ_test) .>= 0.5)
 
+# plot the Precision-Recall and ROC plots
+#using Plots
+#prplot(y_train, ŷ_train)
+#rocplot(y_train, ŷ_train)
 
 
 # struct ConfusionMatrix{T<:Real}
