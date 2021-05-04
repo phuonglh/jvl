@@ -107,42 +107,73 @@ encode(X::Array{Int,2}, embedding, encoder) = encoder(embedding(X))
 encode(Xb::Array{Array{Int,2},1}, embedding, encoder) = [encode(X, embedding, encoder) for X in Xb]
 
 """
-    decode(H, y0, decoder, α, β)
+    β(s, H, attention)
+
+    Align a decoder state `s` with hidden states of inputs `H` of size (hiddenSize x m). 
+    The decoder state is a column vector `s` of length hiddenSize, it should be repeated to create 
+    the same number of columns as `h`, that is of size (hiddenSize x m). 
+
+    This function computes attention scores matrix of size (1 x maxSequenceLength) for a decoder position.
+"""
+function β(s, H::Array{Float32,2}, attention)
+    S = s .* Float32.(ones(1, size(H,2)))
+    return attention(vcat(H, S))
+end
+
+"""
+    α(β)
+
+    Compute the probabilities (weights) vector by using the softmax function. Return a matrix of the same 
+    size as β, that is (1 x maxSequenceLength).
+"""
+function α(β::Array{Float32,2})
+    score = exp.(β)
+    s = sum(score, dims=2)
+    return score ./ s
+end
+
+"""
+    decode(H, y0, decoder, α, β, attention)
 
     Decode at a position. `H` contains the hidden states of the encoder, which is a matrix of size (hiddenSize x maxSequenceLength)
-    and y0 is an one-hot vector representing a label at position t.
+    and y0 is an one-hot vector representing a label at position t. `attention` is an attention model.
 """
-function decode(H::Array{Float32,2}, y0::Array{Int,1}, decoder, α, β)
-    w = α(β(decoder.state, H))
+function decode(H::Array{Float32,2}, y0::Array{Int,1}, decoder, α, β, attention)
+    w = α(β(decoder.state, H, attention))
     c = sum(w .* H, dims=2)
     v = vcat(y0, c)
     return decoder(v)
 end
 
 """
-    decode(H, Y0, encoder, decoder, α, β)
+    decode(H, Y0, encoder, decoder, α, β, attention)
 
     Decodes a sequence given all components.
 """
-function decode(H::Array{Float32,2}, Y0::Array{Int,2}, encoder, decoder, α, β)
-    # take the last state of the encoder as the init state for the decoder
-    # decoder.init = encoder.state[:,end] # old version of Flux
-    # decoder.cell.state0[:, end] = encoder.state[:, end]   # new version of Flux (as of April 2021)
-    # decode positions, one by one
-    y0s = [Y0[:, t] for t=1:size(Y0,2)]
-    ŷs = [decode(H, y0, decoder, α, β) for y0 in y0s]
+function decode(H::Array{Float32,2}, Y0::Array{Int,2}, encoder, decoder, α, β, attention)
+    # take the last state of the encoder as the initial state of the decoder
+    decoder.init = encoder.state[:,end]
+    # decode positions, stop before the padded element
+    z0 = Flux.onecold(Y0)
+    maxLen = size(Y0,2)
+    n = maxLen
+    while z0[n] == 1 
+        n = n-1; 
+    end
+    y0s = [Y0[:, t] for t=1:n]
+    ŷs = [decode(H, y0, decoder, α, β, attention) for y0 in y0s]
+    Flux.reset!(encoder)
+    Flux.reset!(decoder)
     # stack the output array into a 2-d matrix of size (hiddenSize x maxSequenceLength)
     return hcat(ŷs...)
 end
 
-function decode(Hb::Array{Array{Float32,2},1}, Y0b::Array{Array{Int,2},1}, encoder, decoder, α, β) 
-    return [decode(Hb[i], Y0b[i], encoder, decoder, α, β) for i=1:length(Hb)]
+function decode(Hb::Array{Array{Float32,2},1}, Y0b::Array{Array{Int,2},1}, encoder, decoder, α, β, attention) 
+    return [decode(Hb[i], Y0b[i], encoder, decoder, α, β, attention) for i=1:length(Hb)]
 end
 
-function model(Xb, Y0b, embedding, encoder, decoder, α, β, linear)
-    Ŷbs = decode(encode(Xb, embedding, encoder), Y0b, encoder, decoder, α, β)
-    Flux.reset!(encoder)
-    Flux.reset!(decoder)
+function model(Xb, Y0b, embedding, encoder, decoder, α, β, attention, linear)
+    Ŷbs = decode(encode(Xb, embedding, encoder), Y0b, encoder, decoder, α, β, attention)
     return linear.(Ŷbs)
 end
 
@@ -207,32 +238,6 @@ function train(options::Dict{Symbol,Any}, lr=1E-4)
     #  an output position and an input position. The attention model that we use here is a simple linear model.
     attention = Dense(2*options[:hiddenSize], 1)
 
-    """
-        β(s, H)
-
-        Align a decoder state `s` with hidden states of inputs `H` of size (hiddenSize x m). 
-        The decoder state is a column vector `s` of length hiddenSize, it should be repeated to create 
-        the same number of columns as `h`, that is of size (hiddenSize x m). 
-
-        This function computes attention scores matrix of size (1 x maxSequenceLength) for a decoder position.
-    """
-    function β(s, H::Array{Float32,2})
-        S = s .* Float32.(ones(1, size(H,2)))
-        return attention(vcat(H, S))
-    end
-
-    """
-        α(β)
-
-        Compute the probabilities (weights) vector by using the softmax function. Return a matrix of the same 
-        size as β, that is (1 x maxSequenceLength).
-    """
-    function α(β::Array{Float32,2})
-        score = exp.(β)
-        s = sum(score, dims=2)
-        return score ./ s
-    end
-
     # 3. Create a decoder
     numLabels = length(labelIndex)
     decoder = GRU(options[:hiddenSize] + numLabels, options[:hiddenSize])
@@ -243,7 +248,7 @@ function train(options::Dict{Symbol,Any}, lr=1E-4)
     # We need to explicitly program a loss function which does not take into account of padding labels.
     # loss(Xb, Y0b, Yb) = sum(Flux.logitcrossentropy.(model(Xb, Y0b, embedding, encoder, decoder, α, β, linear), Yb))
     function loss(Xb, Y0b, Yb)
-        Ŷb = model(Xb, Y0b, embedding, encoder, decoder, α, β, linear)
+        Ŷb = model(Xb, Y0b, embedding, encoder, decoder, α, β, attention, linear)
         Zb = Flux.onecold.(Yb)
         J = 0
         for t=1:length(Yb)
@@ -265,8 +270,8 @@ function train(options::Dict{Symbol,Any}, lr=1E-4)
     write(file, "loss,trainingAccuracy,validationAccuracy\n")
     evalcb = function()
         ℓ = sum(loss(datasetValidation[i]...) for i=1:length(datasetValidation))
-        trainingAccuracy = evaluate(embedding, encoder, decoder, α, β, linear, Xbs, Y0bs, Ybs, options)
-        validationAccuracy = evaluate(embedding, encoder, decoder, α, β, linear, Ubs, Vbs, Wbs, options)
+        trainingAccuracy = evaluate(embedding, encoder, decoder, α, β, attention, linear, Xbs, Y0bs, Ybs, options)
+        validationAccuracy = evaluate(embedding, encoder, decoder, α, β, attention, linear, Ubs, Vbs, Wbs, options)
         @info string("\tloss = ", ℓ, ", training accuracy = ", trainingAccuracy, ", validation accuracy = ", validationAccuracy)
         write(file, string(ℓ, ',', trainingAccuracy, ',', validationAccuracy, "\n"))
     end
@@ -277,7 +282,7 @@ function train(options::Dict{Symbol,Any}, lr=1E-4)
     @time while (t <= options[:numEpochs]) 
         @info "Epoch $t, k = $k"
         Flux.train!(loss, params(machine), dataset, optimizer, cb = Flux.throttle(evalcb, 60))
-        devAccuracy = evaluate(embedding, encoder, decoder, α, β, linear, Ubs, Vbs, Wbs, options)
+        devAccuracy = evaluate(embedding, encoder, decoder, α, β, attention, linear, Ubs, Vbs, Wbs, options)
         if bestDevAccuracy < devAccuracy
             bestDevAccuracy = devAccuracy
             k = 0
@@ -298,22 +303,22 @@ function train(options::Dict{Symbol,Any}, lr=1E-4)
 
     @info "Total weight of final word embeddings = $(sum(embedding.word.W))"
     @info "Evaluating the model on the training set..."
-    accuracy = evaluate(embedding, encoder, decoder, α, β, linear, Xbs, Y0bs, Ybs, options)
+    accuracy = evaluate(embedding, encoder, decoder, α, β, attention, linear, Xbs, Y0bs, Ybs, options)
     @info "Training accuracy = $accuracy"
-    accuracyValidation = evaluate(embedding, encoder, decoder, α, β, linear, Ubs, Vbs, Wbs, options)
+    accuracyValidation = evaluate(embedding, encoder, decoder, α, β, attention, linear, Ubs, Vbs, Wbs, options)
     @info "Validation accuracy = $accuracyValidation"
     return machine
 end
 
 """
-    evaluate(embedding, encoder, decoder, α, β, linear, Xbs, Y0bs, Ybs, options)
+    evaluate(embedding, encoder, decoder, α, β, attention, linear, Xbs, Y0bs, Ybs, options)
 
     Evaluate the accuracy of the model on a dataset. 
 """
-function evaluate(embedding, encoder, decoder, α, β, linear, Xbs, Y0bs, Ybs, options)
+function evaluate(embedding, encoder, decoder, α, β, attention, linear, Xbs, Y0bs, Ybs, options)
     numBatches = length(Xbs)
     @floop ThreadedEx(basesize=numBatches÷options[:numCores]) for i=1:numBatches
-        Ŷb = Flux.onecold.(model(Xbs[i], Y0bs[i], embedding, encoder, decoder, α, β, linear))
+        Ŷb = Flux.onecold.(model(Xbs[i], Y0bs[i], embedding, encoder, decoder, α, β, attention, linear))
         Yb = Flux.onecold.(Ybs[i])
         # number of tokens and number of matches in this batch
         tokens, matches = 0, 0
@@ -371,11 +376,11 @@ end
 
 
 """
-    predict(sentence, embedding, encoder, decoder, α, β, linear, wordIndex, shapeIndex, posIndex, labelIndex)
+    predict(sentence, embedding, encoder, decoder, α, β, attention, linear, wordIndex, shapeIndex, posIndex, labelIndex)
 
     Find the label sequence for a given sentence.
 """
-function predict(sentence, embedding, encoder, decoder, α, β, linear, wordIndex, shapeIndex, posIndex, labelIndex)
+function predict(sentence, embedding, encoder, decoder, α, β, attention, linear, wordIndex, shapeIndex, posIndex, labelIndex)
     Flux.reset!(encoder)
     Flux.reset!(decoder)
     numLabels = length(labelIndex)
@@ -389,7 +394,7 @@ function predict(sentence, embedding, encoder, decoder, α, β, linear, wordInde
         currentY = Flux.onehot(ps[end], 1:numLabels)
         Y0[:,t] = currentY
         Y0b = [ Int.(Y0) ]
-        output = decode(Hb, Y0b, encoder, decoder, α, β)
+        output = decode(Hb, Y0b, encoder, decoder, α, β, attention)
         score = linear.(output)
         Ŷ = softmax(score[1][:,t])
         # nextY = Flux.onecold(Ŷ)     # use a hard selection approach, always choose the label with the best probability
