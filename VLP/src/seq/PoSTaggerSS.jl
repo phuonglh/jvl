@@ -56,7 +56,7 @@ end
      - Yb1 contains matrices of size (numLabels x maxSequenceLength); each column is an one-hot vector reprsenting [ys, EOS]
     If a sentence is shorter than maxSequenceLength, it is padded with vectors of ones.
 """
-function batch(sentences::Array{Sentence}, wordIndex::Dict{String,Int}, shapeIndex::Dict{String,Int}, posIndex::Dict{String,Int}, labelIndex::Dict{String,Int}, options=optionsVLSP2016)
+function batch(sentences::Array{Sentence}, wordIndex::Dict{String,Int}, shapeIndex::Dict{String,Int}, posIndex::Dict{String,Int}, labelIndex::Dict{String,Int}, options)
     X, Y0, Y1 = Array{Array{Int,2},1}(), Array{Array{Int,2},1}(), Array{Array{Int,2},1}()
     paddingX = [wordIndex[options[:paddingX]]; 1; 1]
     numLabels = length(labelIndex)
@@ -212,7 +212,7 @@ function train(options::Dict{Symbol,Any}, lr=1E-4)
     saveIndex(labelIndex, options[:labelPath])
 
     # create batches of data
-    Xbs, Y0bs, Ybs = batch(sentences, wordIndex, shapeIndex, posIndex, labelIndex)
+    Xbs, Y0bs, Ybs = batch(sentences, wordIndex, shapeIndex, posIndex, labelIndex, options)
     dataset = collect(zip(Xbs, Y0bs, Ybs))
 
     @info "vocabSize = ", length(wordIndex)
@@ -236,14 +236,14 @@ function train(options::Dict{Symbol,Any}, lr=1E-4)
 
     # 2. Create an attention model which scores the degree of match between 
     #  an output position and an input position. The attention model that we use here is a simple linear model.
-    attention = Dense(2*options[:hiddenSize], 1)
+    attention = Dense(2*options[:hiddenSize], 1, relu)
 
     # 3. Create a decoder
     numLabels = length(labelIndex)
     decoder = GRU(options[:hiddenSize] + numLabels, options[:hiddenSize])
     linear = Dense(options[:hiddenSize], numLabels)
     # The full machinary
-    machine = (embedding, encoder, attention, decoder, linear)
+    machine = Chain(embedding, encoder, attention, decoder, linear)
 
     # We need to explicitly program a loss function which does not take into account of padding labels.
     # loss(Xb, Y0b, Yb) = sum(Flux.logitcrossentropy.(model(Xb, Y0b, embedding, encoder, decoder, α, β, linear), Yb))
@@ -262,7 +262,7 @@ function train(options::Dict{Symbol,Any}, lr=1E-4)
         return J
     end
 
-    Ubs, Vbs, Wbs = batch(sentencesValidation, wordIndex, shapeIndex, posIndex, labelIndex)
+    Ubs, Vbs, Wbs = batch(sentencesValidation, wordIndex, shapeIndex, posIndex, labelIndex, options)
     datasetValidation = collect(zip(Ubs, Vbs, Wbs))
 
     optimizer = ADAM(lr)
@@ -337,59 +337,21 @@ function evaluate(embedding, encoder, decoder, α, β, attention, linear, Xbs, Y
     return 100 * numMatches/numTokens
 end
 
-# """
-#     predict(model, Xbs, Y0bs, Ybs,  split, options)
-
-#     Predict a (training) data set, save result to a CoNLL-2003 evaluation script.
-# """
-# function predict(model, Xbs, Y0bs, Ybs, split::Symbol, paddingY::Int=1)
-#     numBatches = length(Xbs)
-#     @floop ThreadedEx(basesize=numBatches÷options[:numCores]) for i=1:numBatches
-#         Ŷb = Flux.onecold.(model(Xbs[i], Y0bs[i]))
-#         Yb = Flux.onecold.(Ybs[i])
-#         truth, pred = Array{Array{String,1},1}(), Array{Array{String,1},1}()
-#         for t=1:length(Yb)
-#             n = options[:maxSequenceLength]
-#             # find the last position of non-padded element
-#             while Yb[t][n] == paddingY
-#                 n = n - 1
-#             end
-#             push!(truth, vocabularies.labels[Yb[t][1:n]])
-#             push!(pred, vocabularies.labels[Ŷb[t][1:n]])
-#         end
-#         @reduce(ss = append!!(EmptyVector(), [(truth, pred)]))
-#     end
-#     file = open(options[split], "w")
-#     result = Array{String,1}()
-#     for b=1:numBatches
-#         truths = ss[b][1]
-#         preds = ss[b][2]
-#         for i = 1:length(truths)
-#             x = map((a, b) -> string(a, ' ', b), truths[i], preds[i])
-#             s = join(x, "\n")
-#             push!(result, s * "\n")
-#         end
-#     end
-#     write(file, join(result, "\n"))
-#     close(file)
-# end
-
-
 """
     predict(sentence, embedding, encoder, decoder, α, β, attention, linear, wordIndex, shapeIndex, posIndex, labelIndex)
 
     Find the label sequence for a given sentence.
 """
-function predict(sentence, embedding, encoder, decoder, α, β, attention, linear, wordIndex, shapeIndex, posIndex, labelIndex)
+function predict(sentence, embedding, encoder, decoder, α, β, attention, linear, wordIndex, shapeIndex, posIndex, labelIndex, options)
     Flux.reset!(encoder)
     Flux.reset!(decoder)
     numLabels = length(labelIndex)
     ps = [labelIndex["BOS"]]
-    Xs, Y0s, Ys = batch([sentence], wordIndex, shapeIndex, posIndex, labelIndex)
+    Xs, Y0s, Ys = batch([sentence], wordIndex, shapeIndex, posIndex, labelIndex, options)
     Xb = first(Xs)
     Hb = encode(Xb, embedding, encoder)
-    Y0 = repeat(Flux.onehotbatch(ps, 1:numLabels), 1, size(Xb[1], 2))
-    m = min(length(sentence.tokens), size(Xb[1], 2))
+    Y0 = repeat(Flux.onehotbatch(ps, 1:numLabels), 1, size(Xb[1],2))
+    m = min(length(sentence.tokens), size(Xb[1],2))
     for t=1:m
         currentY = Flux.onehot(ps[end], 1:numLabels)
         Y0[:,t] = currentY
@@ -397,26 +359,34 @@ function predict(sentence, embedding, encoder, decoder, α, β, attention, linea
         output = decode(Hb, Y0b, encoder, decoder, α, β, attention)
         score = linear.(output)
         Ŷ = softmax(score[1][:,t])
-        # nextY = Flux.onecold(Ŷ)     # use a hard selection approach, always choose the label with the best probability
-        nextY = wsample(1:numLabels, Ŷ) # use a soft selection approach to sample a label from the distribution
+        nextY = Flux.onecold(Ŷ)     # use a hard selection approach, always choose the label with the best probability
+        # nextY = wsample(1:numLabels, Ŷ) # use a soft selection approach to sample a label from the distribution
         push!(ps, nextY)
     end
     return ps[2:end]
 end
 
-"""
-    predict(sentences, labelIndex)
-"""
-function predict(sentences::Array{Sentence}, labelIndex::Dict{String,Int})
-    map(sentence -> predict(sentence, labelIndex), sentences)
+function diagnose(tokens, embedding, encoder, decoder, α, β, attention, linear, wordIndex, shapeIndex, posIndex, labelIndex, options)
+    Xs, Y0s, Ys = batch([Sentence(tokens)], wordIndex, shapeIndex, posIndex, labelIndex, options)
+    Xb = first(Xs)
+    H = encode(first(Xb), embedding, encoder)
+    Y0b = first(Y0s)
+    Y0 = first(Y0b)
+    prediction = linear.(decode(H, Y0, encoder, decoder, α, β, attention))
+    return Flux.onecold(prediction)
 end
 
-# function diagnose(sentence)
-#     Xs, Y0s, Ys = batch([sentence], wordIndex, shapeIndex, posIndex, labelIndex)
-#     Xb = first(Xs)
-#     H = encode(first(Xb))
-#     Y0b = first(Y0s)
-#     Y0 = first(Y0b)
-#     vocabularies.labels[Flux.onecold(decode(H, Y0))]
-# end
+function loadIndices(options)
+    wordIndex = loadIndex(options[:wordPath])
+    shapeIndex = loadIndex(options[:shapePath])
+    posIndex = loadIndex(options[:posPath])
+    labelIndex = loadIndex(options[:labelPath])
+    return (wordIndex, shapeIndex, posIndex, labelIndex)
+end
 
+# sentences = readCorpusUD(options[:trainCorpus])
+# tokens = sentences[1].tokens[2:end]
+# machine = train(options)
+# embedding, encoder, attention, decoder, linear = machine
+# wordIndex, shapeIndex, posIndex, labelIndex = loadIndices(options)
+# diagnose(tokens, embedding, encoder, decoder, α, β, attention, linear, wordIndex, shapeIndex, posIndex, labelIndex)
