@@ -161,7 +161,7 @@ function decode(H::Array{Float32,2}, Y0::Array{Int,2}, encoder, decoder, α, β,
         n = n-1; 
     end
     y0s = [Y0[:, t] for t=1:n]
-    ŷs = [decode(H, y0, decoder, α, β, attention) for y0 in y0s]
+    ŷs = [decode(H[:,1:n], y0, decoder, α, β, attention) for y0 in y0s]
     Flux.reset!(encoder)
     Flux.reset!(decoder)
     # stack the output array into a 2-d matrix of size (hiddenSize x maxSequenceLength)
@@ -173,7 +173,8 @@ function decode(Hb::Array{Array{Float32,2},1}, Y0b::Array{Array{Int,2},1}, encod
 end
 
 function model(Xb, Y0b, embedding, encoder, decoder, α, β, attention, linear)
-    Ŷbs = decode(encode(Xb, embedding, encoder), Y0b, encoder, decoder, α, β, attention)
+    Hb = encode(Xb, embedding, encoder)
+    Ŷbs = decode(Hb, Y0b, encoder, decoder, α, β, attention)
     return linear.(Ŷbs)
 end
 
@@ -389,4 +390,5 @@ end
 # machine = train(options)
 # embedding, encoder, attention, decoder, linear = machine
 # wordIndex, shapeIndex, posIndex, labelIndex = loadIndices(options)
-# diagnose(tokens, embedding, encoder, decoder, α, β, attention, linear, wordIndex, shapeIndex, posIndex, labelIndex)
+# predict(Sentence(tokens), embedding, encoder, decoder, α, β, attention, linear, wordIndex, shapeIndex, posIndex, labelIndex, options)
+# diagnose(tokens, embedding, encoder, decoder, α, β, attention, linear, wordIndex, shapeIndex, posIndex, labelIndex, options)
