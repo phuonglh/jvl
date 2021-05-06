@@ -9,6 +9,7 @@ using Flux: @epochs
 using Random
 using EvalMetrics
 using BSON: @save
+using MLDataUtils
 
 df = DataFrame(CSV.File("dat/vcb/creditcard.csv"))
 y = df[:, :Class]
@@ -27,11 +28,10 @@ js = shuffle(1:length(y))
 X = X[:, js]
 y = y[js]
 
-# training/test split
-N_train = 100_000
-N_test = 10_000
-X_train, X_test = X[:, 1:N_train], X[:, (N_train + 1):(N_train + N_test)]
-y_train, y_test = y[1:N_train], y[(N_train + 1):(N_train + N_test)]
+@info size(X)
+
+# training/test split using stratified sampling
+(X_train, y_train), (X_test, y_test) = stratifiedobs((X, y), p = 0.7)
 
 # build data loaders; we use a large batch size to ensure that 
 # each batch has several positive samples to learn from
@@ -69,8 +69,8 @@ binary_eval_report(y_test, collect(ŷ_test))
 cm_test = ConfusionMatrix(y_test, collect(ŷ_test) .>= 0.5)
 
 # plot the Precision-Recall and ROC plots
-#using Plots
-prplot(y_train, collect(ŷ_train))
+using Plots
+# prplot(y_train, collect(ŷ_train))
 rocplot(y_train, collect(ŷ_train))
 
 
