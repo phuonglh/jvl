@@ -31,7 +31,12 @@ y = y[js]
 @info size(X)
 
 # training/test split using stratified sampling
-(X_train, y_train), (X_test, y_test) = stratifiedobs((X, y), p = 0.7)
+# (X_train, y_train), (X_test, y_test) = stratifiedobs((X, y), p = 0.7)
+
+# training/test split using undersampling
+X_us, y_us = undersample((X, y))
+(X_train, y_train), (X_test, y_test) = splitobs((X_us, y_us), at = 0.7)
+
 
 # build data loaders; we use a large batch size to ensure that 
 # each batch has several positive samples to learn from
@@ -54,8 +59,8 @@ function cbf()
 end
 
 # perform optimization
-optimizer = ADAM(1E-3)
-@epochs 30 Flux.train!(loss, Flux.params(model), dataset_train, optimizer, cb = Flux.throttle(cbf, 60))
+optimizer = ADAM(1E-4)
+@epochs 100 Flux.train!(loss, Flux.params(model), dataset_train, optimizer, cb = Flux.throttle(cbf, 60))
 @save "dat/vcb/model.bson" model
 
 @info "Final evaluation on the training set: "
