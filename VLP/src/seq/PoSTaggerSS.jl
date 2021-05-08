@@ -58,12 +58,14 @@ end
 """
 function batch(sentences::Array{Sentence}, wordIndex::Dict{String,Int}, shapeIndex::Dict{String,Int}, posIndex::Dict{String,Int}, labelIndex::Dict{String,Int}, options)
     X, Y0, Y1 = Array{Array{Int,2},1}(), Array{Array{Int,2},1}(), Array{Array{Int,2},1}()
-    paddingX = [wordIndex[options[:paddingX]]; 1; 1]
+    paddingX = [wordIndex[options[:paddingX]]; shapeIndex["other"]; posIndex["X"]]
     numLabels = length(labelIndex)
     paddingY = Flux.onehot(labelIndex[options[:paddingY]], 1:numLabels)
     for sentence in sentences
         tokens = sentence.tokens[2:end] # not consider the ROOT token of UD graphs
-        xs = map(token -> [get(wordIndex, lowercase(token.word), 1), get(shapeIndex, shape(token.word), 1), get(posIndex, token.annotation[:upos], 1)], tokens)
+        xs = map(token -> [ get(wordIndex, lowercase(token.word), wordIndex[options[:unknown]]), 
+            get(shapeIndex, shape(token.word), shapeIndex["other"]), 
+            get(posIndex, token.annotation[:upos], posIndex["X"])], tokens)
         push!(xs, paddingX)
         ys = map(token -> Flux.onehot(labelIndex[token.annotation[:pos]], 1:numLabels, 1), tokens)
         ys0 = copy(ys); prepend!(ys0, [Flux.onehot(labelIndex["BOS"], 1:length(labelIndex), 1)])
@@ -228,7 +230,7 @@ function train(options::Dict{Symbol,Any}, lr=1E-4)
 
     # 2. Create an attention model which scores the degree of match between 
     #  an output position and an input position. The attention model that we use here is a simple linear model.
-    attention = Dense(2*options[:hiddenSize], 1, relu)
+    attention = Dense(2*options[:hiddenSize], 1)
 
     # 3. Create a decoder
     numLabels = length(labelIndex)
@@ -360,7 +362,7 @@ function diagnose(tokens, embedding, encoder, decoder, attention, linear, wordIn
     Xb = first(Xs)
     Y0b = first(Y0s)
     score = model(Xb, Y0b, embedding, encoder, decoder, attention, linear)
-    return Flux.onecold.(score)
+    return score
 end
 
 function loadIndices(options)
