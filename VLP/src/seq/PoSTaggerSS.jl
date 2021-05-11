@@ -112,7 +112,7 @@ encode(X::Array{Int,2}, embedding, encoder) = encoder(embedding(X))
 """
 function β(s, H::Array{Float32,2}, attention)
     S = s .* Float32.(ones(1, size(H,2)))
-    return attention(vcat(H, S))
+    return attention(tanh.(H + S))
 end
 
 """
@@ -233,8 +233,8 @@ function train(options::Dict{Symbol,Any}, lr=1E-4)
     encoder = GRU(inputSize, options[:hiddenSize])
 
     # 2. Create an attention model which scores the degree of match between 
-    #  an output position and an input position. The attention model that we use here is a simple linear model.
-    attention = Dense(2*options[:hiddenSize], 1)
+    #  an output position and an input position. 
+    attention = Dense(options[:hiddenSize], 1)
 
     # 3. Create a decoder
     numLabels = length(labelIndex)
