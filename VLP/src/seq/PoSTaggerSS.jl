@@ -134,18 +134,18 @@ end
     and y0 is an one-hot vector representing a label at position t. `attention` is an attention model.
 """
 function decode(H::Array{Float32,2}, y0::Array{Int,1}, decoder, attention)
-    w = α(β(decoder.state, H, attention))
-    c = sum(w .* H, dims=2)
+    w = α(β(decoder.state, H, attention)) # a matrix of size (1 x m)
+    c = sum(w .* H, dims=2) # a matrix of size (hiddenSize x 1)
     v = vcat(y0, c)
     return decoder(v)
 end
 
 """
-    decode(H, Y0, encoder, decoder, attention)
+    decode(H, Y0, decoder, attention)
 
     Decodes a sequence given all components.
 """
-function decode(H::Array{Float32,2}, Y0::Array{Int,2}, encoder, decoder, attention)
+function decode(H::Array{Float32,2}, Y0::Array{Int,2}, decoder, attention)
     # find the last non-padded element at position n
     z0 = Flux.onecold(Y0)
     maxLen = size(Y0,2)
@@ -166,7 +166,7 @@ function model(Xb, Y0b, embedding, encoder, decoder, attention, linear)
         Flux.reset!(encoder)
         # take the last state of the encoder as the initial state of the decoder
         decoder.init = encoder.state[:,end]
-        Ŷs = decode(H, Y0, encoder, decoder, attention)
+        Ŷs = decode(H, Y0, decoder, attention)
         Flux.reset!(decoder)
         linear(Ŷs)
     end
