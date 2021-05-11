@@ -106,7 +106,7 @@ encode(X::Array{Int,2}, embedding, encoder) = encoder(embedding(X))
 
     Align a decoder state `s` with hidden states of inputs `H` of size (hiddenSize x m). 
     The decoder state is a column vector `s` of length hiddenSize, it should be repeated to create 
-    the same number of columns as `h`, that is of size (hiddenSize x m). 
+    the same number of columns as `H`, that is of size (hiddenSize x m). 
 
     This function computes attention scores matrix of size (1 x maxSequenceLength) for a decoder position.
 """
@@ -153,11 +153,9 @@ function decode(H::Array{Float32,2}, Y0::Array{Int,2}, encoder, decoder, attenti
     while z0[n] == 1 
         n = n-1; 
     end
-    # take the last state of the encoder as the initial state of the decoder
-    decoder.init = encoder.state[:,n]
     # decode positions up to the real sequence length
     y0s = [Y0[:, t] for t=1:n]
-    ŷs = [decode(H[:,1:(n-1)], y0, decoder, attention) for y0 in y0s]
+    ŷs = [decode(H[:,1:n], y0, decoder, attention) for y0 in y0s]
     # stack the output array into a 2-d matrix of size (hiddenSize x maxSequenceLength)
     return hcat(ŷs...)
 end
@@ -165,7 +163,11 @@ end
 function model(Xb, Y0b, embedding, encoder, decoder, attention, linear)
     f(X, Y0) = begin
         H = encode(X, embedding, encoder)
+        Flux.reset!(encoder)
+        # take the last state of the encoder as the initial state of the decoder
+        decoder.init = encoder.state[:,end]
         Ŷs = decode(H, Y0, encoder, decoder, attention)
+        Flux.reset!(decoder)
         linear(Ŷs)
     end
     return map((X, Y0) -> f(X, Y0), Xb, Y0b)
@@ -190,8 +192,10 @@ function train(options::Dict{Symbol,Any}, lr=1E-4)
 
     vocabularies = vocab(sentences, options[:minFreq])
 
-    prepend!(vocabularies.words, [options[:unknown]])
-    append!(vocabularies.words, [options[:paddingX]])
+    # the PAD_X word will have index 1
+    prepend!(vocabularies.words, [options[:paddingX]])
+    # the UNK word will have the last index
+    append!(vocabularies.words, [options[:unknown]])
     wordIndex = Dict{String,Int}(word => i for (i, word) in enumerate(vocabularies.words))
     shapeIndex = Dict{String,Int}(shape => i for (i, shape) in enumerate(vocabularies.shapes))
     posIndex = Dict{String,Int}(pos => i for (i, pos) in enumerate(vocabularies.partsOfSpeech))
@@ -236,8 +240,8 @@ function train(options::Dict{Symbol,Any}, lr=1E-4)
     numLabels = length(labelIndex)
     decoder = GRU(options[:hiddenSize] + numLabels, options[:hiddenSize])
     linear = Dense(options[:hiddenSize], numLabels)
-    # The full machinary
-    machine = (embedding, encoder, decoder, attention, linear)
+    # The full machinary (WITHOUT embedding for quick testing)
+    machine = (encoder, decoder, attention, linear)
 
     # We need to explicitly program a loss function which does not take into account of padding labels.
     function loss(Xb, Y0b, Yb)
@@ -336,13 +340,11 @@ end
     Find the label sequence for a given sentence.
 """
 function predict(sentence, embedding, encoder, decoder, attention, linear, wordIndex, shapeIndex, posIndex, labelIndex, options)
-    Flux.reset!(encoder)
-    Flux.reset!(decoder)
     numLabels = length(labelIndex)
     ps = [labelIndex["BOS"]]
     Xs, Y0s, Ys = batch([sentence], wordIndex, shapeIndex, posIndex, labelIndex, options)
     Xb = first(Xs)
-    Y0 = repeat(Flux.onehotbatch(ps, 1:numLabels), 1, size(Xb[1],2))
+    Y0 = Int.(zeros(numLabels, size(Xb[1],2)))
     m = min(length(sentence.tokens), size(Xb[1],2))
     for t=1:m
         currentY = Flux.onehot(ps[end], 1:numLabels)
@@ -350,15 +352,15 @@ function predict(sentence, embedding, encoder, decoder, attention, linear, wordI
         Y0b = [ Int.(Y0) ]
         score = model(Xb, Y0b, embedding, encoder, decoder, attention, linear)
         Ŷ = softmax(score[1][:,t])
-        nextY = Flux.onecold(Ŷ)     # use a hard selection approach, always choose the label with the best probability
-        # nextY = wsample(1:numLabels, Ŷ) # use a soft selection approach to sample a label from the distribution
+        # nextY = Flux.onecold(Ŷ)     # use a hard selection approach, always choose the label with the best probability
+        nextY = wsample(1:numLabels, Ŷ) # use a soft selection approach to sample a label from the distribution
         push!(ps, nextY)
     end
     return ps[2:end]
 end
 
-function diagnose(tokens, embedding, encoder, decoder, attention, linear, wordIndex, shapeIndex, posIndex, labelIndex, options)
-    Xs, Y0s, Ys = batch([Sentence(tokens)], wordIndex, shapeIndex, posIndex, labelIndex, options)
+function diagnose(sentence, embedding, encoder, decoder, attention, linear, wordIndex, shapeIndex, posIndex, labelIndex, options)
+    Xs, Y0s, Ys = batch([sentence], wordIndex, shapeIndex, posIndex, labelIndex, options)
     Xb = first(Xs)
     Y0b = first(Y0s)
     score = model(Xb, Y0b, embedding, encoder, decoder, attention, linear)
@@ -374,10 +376,10 @@ function loadIndices(options)
 end
 
 # options = optionsVUD
-# sentences = readCorpusUD(options[:trainCorpus])
-# tokens = sentences[1].tokens[2:end]
+# sentences = readCorpusUD(options[:trainCorpus]);
 # machine = train(options)
 # embedding, encoder, decoder, attention, linear = machine
+# OR: encoder, decoder, attention, linear = machine 
 # wordIndex, shapeIndex, posIndex, labelIndex = loadIndices(options)
-# predict(Sentence(tokens), embedding, encoder, decoder, attention, linear, wordIndex, shapeIndex, posIndex, labelIndex, options)
+# predict(sentences[1], embedding, encoder, decoder, attention, linear, wordIndex, shapeIndex, posIndex, labelIndex, options)
 # diagnose(tokens, embedding, encoder, decoder, attention, linear, wordIndex, shapeIndex, posIndex, labelIndex, options)
