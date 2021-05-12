@@ -23,6 +23,21 @@ include("Options.jl")
 include("Utils.jl")
 
 
+struct Machine
+    embedding   # input embedding layer
+    encoder     # input encoder (GRU)
+    attention   # attention layer (Dense)
+    decoder     # decoder (GRU)
+    linear      # linear layer (Dense)
+end
+
+struct Indices
+    wordIndex
+    shapeIndex
+    posIndex
+    labelIndex
+end
+
 """
     vocab(sentences, minFreq)
 
@@ -39,8 +54,8 @@ function vocab(sentences::Array{Sentence}, minFreq::Int = 1)::Vocabularies
         word = lowercase(strip(token.word))
         haskey(wordFrequency, word) ? wordFrequency[word] += 1 : wordFrequency[word] = 1
         shapes[shape(token.word)] = 0
-        partsOfSpeech[token.annotation[:pos]] = 0
-        labels[token.annotation[:upos]] = 0
+        partsOfSpeech[token.annotation[:upos]] = 0
+        labels[token.annotation[:pos]] = 0
     end
     # filter out infrequent words
     filter!(p -> p.second >= minFreq, wordFrequency)
@@ -49,7 +64,7 @@ function vocab(sentences::Array{Sentence}, minFreq::Int = 1)::Vocabularies
 end
 
 """
-    batch(sentences, wordIndex, shapeIndex, posIndex, labelIndex, options)
+    batch(sentences, indices, options)
 
     Create batches of data for training or evaluating. Each batch contains a triple (Xb, Yb0, Yb1) where 
      - Xb contains matrices of size (3 x maxSequenceLength); each column is a vector representing a token.
@@ -57,7 +72,9 @@ end
      - Yb1 contains matrices of size (numLabels x maxSequenceLength); each column is an one-hot vector reprsenting [ys, EOS]
     If a sentence is shorter than maxSequenceLength, it is padded with vectors of ones.
 """
-function batch(sentences::Array{Sentence}, wordIndex::Dict{String,Int}, shapeIndex::Dict{String,Int}, posIndex::Dict{String,Int}, labelIndex::Dict{String,Int}, options)
+function batch(sentences::Array{Sentence}, indices, options)
+    wordIndex, shapeIndex, posIndex = indices.wordIndex, indices.shapeIndex, indices.posIndex
+    labelIndex = indices.labelIndex
     X, Y0, Y1 = Array{Array{Int,2},1}(), Array{Array{Int,2},1}(), Array{Array{Int,2},1}()
     paddingX = [wordIndex[options[:paddingX]]; shapeIndex["other"]; posIndex["X"]]
     numLabels = length(labelIndex)
@@ -66,9 +83,9 @@ function batch(sentences::Array{Sentence}, wordIndex::Dict{String,Int}, shapeInd
         tokens = sentence.tokens[2:end] # not consider the ROOT token of UD graphs
         xs = map(token -> [ get(wordIndex, lowercase(token.word), wordIndex[options[:unknown]]), 
             get(shapeIndex, shape(token.word), shapeIndex["other"]), 
-            get(posIndex, token.annotation[:pos], posIndex["X"])], tokens)
+            get(posIndex, token.annotation[:upos], posIndex["X"])], tokens)
         push!(xs, paddingX)
-        ys = map(token -> Flux.onehot(labelIndex[token.annotation[:upos]], 1:numLabels, 1), tokens)
+        ys = map(token -> Flux.onehot(labelIndex[token.annotation[:pos]], 1:numLabels, 1), tokens)
         ys0 = copy(ys); prepend!(ys0, [Flux.onehot(labelIndex["BOS"], 1:length(labelIndex), 1)])
         ys1 = copy(ys); append!(ys1, [Flux.onehot(labelIndex["EOS"], 1:length(labelIndex), 1)])
         # crop the columns of xs and ys to maxSequenceLength
@@ -135,7 +152,7 @@ end
 """
 function decode(H::Array{Float32,2}, y0::Array{Int,1}, attention, decoder)
     w = α(β(decoder.state, H, attention)) # a matrix of size (1 x m)
-    c = sum(w .* H, dims=2) # a matrix of size (hiddenSize x 1)
+    c = sum(w .* H, dims=2) # a vector of size (hiddenSize x 1)
     v = vcat(y0, c)
     decoder(v)
 end
@@ -158,20 +175,20 @@ function decode(H::Array{Float32,2}, Y0::Array{Int,2}, attention, decoder)
     Hm = H[:, 1:m]
     ŷs = [decode(Hm, y0, attention, decoder) for y0 in y0s]
     # stack the output array into a 2-d matrix of size (hiddenSize x m)
-    return hcat(ŷs...)
+    hcat(ŷs...)
 end
 
-function model(Xb, Y0b, embedding, encoder, attention, decoder, linear)
+function model(Xb, Y0b, machine)
     f(X, Y0) = begin
-        Flux.reset!(encoder)
-        H = encode(X, embedding, encoder)
+        Flux.reset!(machine.encoder)
+        H = encode(X, machine.embedding, machine.encoder)
         # take the last state of the encoder as the initial state of the decoder
-        decoder.init = encoder.state[:,end]
-        Ŷ = decode(H, Y0, attention, decoder)
-        Flux.reset!(decoder)
-        linear(Ŷ)
+        machine.decoder.init = machine.encoder.state[:,end]
+        Ŷ = decode(H, Y0, machine.attention, machine.decoder)
+        Flux.reset!(machine.decoder)
+        machine.linear(Ŷ)
     end
-    return map((X, Y0) -> f(X, Y0), Xb, Y0b)
+    map((X, Y0) -> f(X, Y0), Xb, Y0b)
 end
 
 """
@@ -210,8 +227,9 @@ function train(options::Dict{Symbol,Any}, lr=1E-4)
     saveIndex(posIndex, options[:posPath])
     saveIndex(labelIndex, options[:labelPath])
 
+    indices = Indices(wordIndex, shapeIndex, posIndex, labelIndex)
     # create batches of data
-    Xbs, Y0bs, Ybs = batch(sentences, wordIndex, shapeIndex, posIndex, labelIndex, options)
+    Xbs, Y0bs, Ybs = batch(sentences, indices, options)
     dataset = collect(zip(Xbs, Y0bs, Ybs))
 
     @info "vocabSize = ", length(wordIndex)
@@ -235,18 +253,19 @@ function train(options::Dict{Symbol,Any}, lr=1E-4)
 
     # 2. Create an attention model which scores the degree of match between 
     #  an output position and an input position. 
-    attention = Dense(options[:hiddenSize], 1)
+    attention = Dense(options[:hiddenSize], 1, relu)
 
     # 3. Create a decoder
     numLabels = length(labelIndex)
     decoder = GRU(options[:hiddenSize] + numLabels, options[:hiddenSize])
     linear = Dense(options[:hiddenSize], numLabels)
     # The full machinary (can use WITHOUT embedding for quick testing)
-    machine = Chain(embedding, encoder, attention, decoder, linear)
+    layers = Chain(embedding, encoder, attention, decoder, linear)
+    machine = Machine(embedding, encoder, attention, decoder, linear)
 
     # We need to explicitly program a loss function which does not take into account of padding labels.
     function loss(Xb, Y0b, Yb)
-        Ŷb = model(Xb, Y0b, embedding, encoder, attention, decoder, linear)
+        Ŷb = model(Xb, Y0b, machine)
         Zb = Flux.onecold.(Yb)
         J = 0
         for t=1:length(Yb)
@@ -260,7 +279,7 @@ function train(options::Dict{Symbol,Any}, lr=1E-4)
         return J
     end
 
-    Ubs, Vbs, Wbs = batch(sentencesValidation, wordIndex, shapeIndex, posIndex, labelIndex, options)
+    Ubs, Vbs, Wbs = batch(sentencesValidation, indices, options)
     datasetValidation = collect(zip(Ubs, Vbs, Wbs))
 
     optimizer = ADAM(lr)
@@ -269,10 +288,10 @@ function train(options::Dict{Symbol,Any}, lr=1E-4)
     evalcb = function()
         ℓ = sum(loss(datasetValidation[i]...) for i=1:length(datasetValidation))
         @info string("\tloss = ", ℓ)
-        # trainingAccuracy = evaluate(embedding, encoder, attention, decoder, linear, Xbs, Y0bs, Ybs, options)
-        # validationAccuracy = evaluate(embedding, encoder, attention, decoder, linear, Ubs, Vbs, Wbs, options)
-        # @info string("\tloss = ", ℓ, ", training accuracy = ", trainingAccuracy, ", validation accuracy = ", validationAccuracy)
-        # write(file, string(ℓ, ',', trainingAccuracy, ',', validationAccuracy, "\n"))
+        trainingAccuracy = evaluate(machine, Xbs, Y0bs, Ybs, options)
+        validationAccuracy = evaluate(machine, Ubs, Vbs, Wbs, options)
+        @info string("\tloss = ", ℓ, ", training accuracy = ", trainingAccuracy, ", validation accuracy = ", validationAccuracy)
+        write(file, string(ℓ, ',', trainingAccuracy, ',', validationAccuracy, "\n"))
     end
     # train the model until the validation accuracy decreases 2 consecutive times
     t = 1
@@ -280,15 +299,15 @@ function train(options::Dict{Symbol,Any}, lr=1E-4)
     bestAccuracy = 0
     @time while (t <= options[:numEpochs]) 
         @info "Epoch $t, k = $k"
-        Flux.train!(loss, params(machine), dataset, optimizer, cb = Flux.throttle(evalcb, 60))
-        accuracy = evaluate(embedding, encoder, attention, decoder, linear, Xbs, Y0bs, Ybs, options)
+        Flux.train!(loss, params(layers), dataset, optimizer, cb = Flux.throttle(evalcb, 60))
+        accuracy = evaluate(machine, Xbs, Y0bs, Ybs, options)
         if bestAccuracy < accuracy
             bestAccuracy = accuracy
             k = 0
         else
             k = k + 1
-            if (k == 5)
-                @info "Stop training because current accuracy is smaller than the best accuracy: $(accuracy) < $(bestAccuracy)."
+            if (k == 3)
+                @info "3-consecutive times worse than the best. Stop training: $(accuracy) < $(bestAccuracy)."
                 break
             end
         end
@@ -302,22 +321,22 @@ function train(options::Dict{Symbol,Any}, lr=1E-4)
 
     @info "Total weight of final word embeddings = $(sum(embedding.word.W))"
     @info "Evaluating the model on the training set..."
-    accuracy = evaluate(embedding, encoder, attention, decoder, linear, Xbs, Y0bs, Ybs, options)
+    accuracy = evaluate(machine, Xbs, Y0bs, Ybs, options)
     @info "Training accuracy = $accuracy"
-    accuracyValidation = evaluate(embedding, encoder, attention, decoder, linear, Ubs, Vbs, Wbs, options)
+    accuracyValidation = evaluate(machine, Ubs, Vbs, Wbs, options)
     @info "Validation accuracy = $accuracyValidation"
-    return machine
+    machine
 end
 
 """
-    evaluate(embedding, encoder, attention, decoder, linear, Xbs, Y0bs, Ybs, options)
+    evaluate(machine, Xbs, Y0bs, Ybs, options)
 
     Evaluate the accuracy of the model on a dataset. 
 """
-function evaluate(embedding, encoder, attention, decoder, linear, Xbs, Y0bs, Ybs, options)
+function evaluate(machine, Xbs, Y0bs, Ybs, options)
     numBatches = length(Xbs)
     @floop ThreadedEx(basesize=numBatches÷options[:numCores]) for i=1:numBatches
-        Ŷb = Flux.onecold.(model(Xbs[i], Y0bs[i], embedding, encoder, attention, decoder, linear))
+        Ŷb = Flux.onecold.(model(Xbs[i], Y0bs[i], machine))
         Yb = Flux.onecold.(Ybs[i])
         # number of tokens and number of matches in this batch
         tokens, matches = 0, 0
@@ -333,13 +352,13 @@ function evaluate(embedding, encoder, attention, decoder, linear, Xbs, Y0bs, Ybs
         @reduce(numTokens += tokens, numMatches += matches)
     end
     @info "\tmatched tokens = $(numMatches)/$(numTokens)"
-    return 100 * numMatches/numTokens
+    100 * numMatches/numTokens
 end
 
-function predict(sentence, embedding, encoder, attention, decoder, linear, wordIndex, shapeIndex, posIndex, labelIndex, options)
+function predict(sentence, machine, indices, options)
     numLabels = length(labelIndex)
     ps = [labelIndex["BOS"]]
-    Xs, Y0s, Ys = batch([sentence], wordIndex, shapeIndex, posIndex, labelIndex, options)
+    Xs, Y0s, Ys = batch([sentence], indices, options)
     Xb = first(Xs)
     Y0 = Int.(zeros(numLabels, size(Xb[1],2)))
     m = min(length(sentence.tokens), size(Xb[1],2))
@@ -347,21 +366,20 @@ function predict(sentence, embedding, encoder, attention, decoder, linear, wordI
         currentY = Flux.onehot(ps[end], 1:numLabels)
         Y0[:,t] = currentY
         Y0b = [ Int.(Y0) ]
-        score = model(Xb, Y0b, embedding, encoder, attention, decoder, linear)
+        score = model(Xb, Y0b, machine)
         Ŷ = softmax(score[1][:,t])
         # nextY = Flux.onecold(Ŷ)     # use a hard selection approach, always choose the label with the best probability
         nextY = wsample(1:numLabels, Ŷ) # use a soft selection approach to sample a label from the distribution
         push!(ps, nextY)
     end
-    return ps[2:end]
+    ps[2:end]
 end
 
-function diagnose(sentence, embedding, encoder, attention, decoder, linear, wordIndex, shapeIndex, posIndex, labelIndex, options)
-    Xs, Y0s, Ys = batch([sentence], wordIndex, shapeIndex, posIndex, labelIndex, options)
+function diagnose(sentence, machine, indices, options)
+    Xs, Y0s, Ys = batch([sentence], indices, options)
     Xb = first(Xs)
     Y0b = first(Y0s)
-    score = model(Xb, Y0b, embedding, encoder, attention, decoder, linear)
-    return score
+    model(Xb, Y0b, machine)
 end
 
 function loadIndices(options)
@@ -369,13 +387,18 @@ function loadIndices(options)
     shapeIndex = loadIndex(options[:shapePath])
     posIndex = loadIndex(options[:posPath])
     labelIndex = loadIndex(options[:labelPath])
-    return (wordIndex, shapeIndex, posIndex, labelIndex)
+    Indices(wordIndex, shapeIndex, posIndex, labelIndex)
 end
 
-# options = optionsVUD
+# options = optionsVUD/optionsGSD
 # sentences = readCorpusUD(options[:trainCorpus]);
 # machine = train(options)
-# embedding, encoder, attention, decoder, linear = machine
-# wordIndex, shapeIndex, posIndex, labelIndex = loadIndices(options)
-# predict(sentences[1], embedding, encoder, attention, decoder, linear, wordIndex, shapeIndex, posIndex, labelIndex, options)
-# diagnose(tokens, embedding, encoder, attention, decoder, linear, wordIndex, shapeIndex, posIndex, labelIndex, options)
+# indices = loadIndices(options);
+# predict(sentences[1], machine, indices, options)
+# diagnose(sentences[1], machine, indices, options)
+
+# Xbs, Y0bs, Ybs = batch(sentences, indices, options)
+# Xb, Y0b, Yb = first(Xbs), first(Y0bs), first(Ybs)
+# X, Y0, Y = first(Xb), first(Y0b), first(Yb)
+
+
