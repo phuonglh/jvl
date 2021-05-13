@@ -68,25 +68,21 @@ function batch(pairs::Array{Tuple{String,String}}, sourceDict, targetDict, optio
     (Xbs, Ybs)
 end
 
-function model(X::Array{Int}, Y::Array{Int}, machine, paddingY::Int, maxSeqLen::Int)
+function model(X::Array{Int}, Y::Array{Int}, machine)
     U = machine.sourceEmbedding(X)
     H = machine.encoder(U)
-    # find the actual output length n
-    n = maxSeqLen
-    while (Y[n] == paddingY) n = n - 1; end
     # compute output embeddings
-    V = machine.targetEmbedding(Y[1:n])
-    # decode output
-    decode(s, v) = machine.decoder(vcat(s, v))
+    V = machine.targetEmbedding(Y)
     s = H[:,end]
-    ys = [decode(s, V[:, j]) for j=1:n]
-    machine.linear(hcat(ys...))
+    S = vcat(repeat(s, 1, size(V, 2)), V)
+    # decode output
+    machine.linear(machine.decoder(S))
 end
 
-function model(Xb, Yb, machine, paddingY, maxSeqLen)
+function model(Xb, Yb, machine)
     Flux.reset!(machine.encoder)
     Flux.reset!(machine.decoder)
-    map((X, Y) -> model(X, Y, machine, paddingY, maxSeqLen), Xb, Yb)
+    map((X, Y) -> model(X, Y, machine), Xb, Yb)
 end
 
 function train(options)
@@ -119,7 +115,7 @@ function train(options)
     maxSeqLen = options[:maxSequenceLength]
 
     function loss(Xb, Yb)        
-        Ŷb = model(Xb, Yb, machine, paddingY, maxSeqLen)
+        Ŷb = model(Xb, Yb, machine)
         Zb = map(Y -> Flux.onehotbatch(Y, 1:n+3), Yb)
         J = 0
         # run through the batch and aggregate loss values
@@ -177,7 +173,7 @@ end
 function evaluate(machine, Xbs, Ybs, paddingY, maxSeqLen)
     numBatches = length(Xbs)
     @floop ThreadedEx(basesize=numBatches÷options[:numCores]) for i=1:numBatches
-        Ŷb = Flux.onecold.(model(Xbs[i], Ybs[i], machine, paddingY, maxSeqLen))
+        Ŷb = Flux.onecold.(model(Xbs[i], Ybs[i], machine))
         Yb = Ybs[i]
         # number of tokens and number of matches in this batch
         tokens, matches = 0, 0
