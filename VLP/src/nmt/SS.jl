@@ -44,7 +44,7 @@ function vocab(sentences::Array{String}, options)::Dict{String,Int}
 end
 
 function batch(pairs::Array{Tuple{String,String}}, sourceDict, targetDict, options)
-    @infor "Create batches for training. Please wait..."
+    @info "Create batches for training. Please wait..."
     Xs, Ys = Array{Array{Int},1}(), Array{Array{Int},1}()
     b = options[:batchSize]
     m = options[:maxSequenceLength]
