@@ -1,7 +1,7 @@
 
 options = Dict{Symbol,Any}(
     :minFreq => 5,
-    :maxSequenceLength => 40,
+    :maxSequenceLength => 20,
     :batchSize => 64,
     :numEpochs => 100,
     :numCores => 4,

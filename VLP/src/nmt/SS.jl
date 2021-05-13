@@ -63,8 +63,8 @@ function batch(pairs::Array{Tuple{String,String}}, sourceDict, targetDict, optio
             push!(Ys, ys)
         end
     end
-    Xbs = collect(map(A -> collect(A), Iterators.partition(Xs, options[:batchSize])))
-    Ybs = collect(map(A -> collect(A), Iterators.partition(Ys, options[:batchSize])))
+    Xbs = collect(map(A -> collect(A), Iterators.partition(Xs, b)))
+    Ybs = collect(map(A -> collect(A), Iterators.partition(Ys, b)))
     (Xbs, Ybs)
 end
 
@@ -114,13 +114,13 @@ function train(options)
     paddingY = targetDict[options[:PAD]]
     maxSeqLen = options[:maxSequenceLength]
 
-    function loss(Xb, Yb)        
+    function loss(Xb, Yb)
         Ŷb = model(Xb, Yb, machine)
         Zb = map(Y -> Flux.onehotbatch(Y, 1:n+3), Yb)
         J = 0
         # run through the batch and aggregate loss values
         for t=1:length(Yb)
-            local k = maxSeqLen
+            k = maxSeqLen
             # find the last position of non-padded element
             while (Yb[t][k] == paddingY) k = k - 1; end
             J += Flux.logitcrossentropy(Ŷb[t][1:k], Zb[t][1:k])
@@ -178,7 +178,7 @@ function evaluate(machine, Xbs, Ybs, paddingY, maxSeqLen)
         # number of tokens and number of matches in this batch
         tokens, matches = 0, 0
         for t=1:length(Yb)
-            local k = maxSeqLen
+            k = maxSeqLen
             # find the last position of non-padded element
             while (Yb[t][k] == paddingY) k = k - 1; end
             tokens += k
