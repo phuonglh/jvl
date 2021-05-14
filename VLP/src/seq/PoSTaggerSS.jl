@@ -274,7 +274,7 @@ function train(options::Dict{Symbol,Any}, lr=1E-4)
             while Zb[t][n] == 1
                 n = n - 1
             end
-            J += Flux.logitcrossentropy(Ŷb[t][1:n], Yb[t][1:n])
+            J += Flux.logitcrossentropy(Ŷb[t][:,1:n], Yb[t][:,1:n])
         end
         return J
     end

@@ -13,6 +13,7 @@ using .VietnameseTokenizer
 include("Embedding.jl")
 include("Options.jl")
 include("Corpus.jl")
+include("BiRNN.jl")
 
 
 struct Machine
@@ -68,37 +69,43 @@ function batch(pairs::Array{Tuple{String,String}}, sourceDict, targetDict, optio
     (Xbs, Ybs)
 end
 
-function model(X::Array{Int}, Y::Array{Int}, machine)
+function model(X::Array{Int}, Y::Array{Int}, paddingX, paddingY, machine)
+    # find the actual lengths of X and Y
+    m, n = length(X), length(Y)
+    while X[m] == paddingX m = m - 1; end
+    while Y[n] == paddingY n = n - 1; end
+    # compute source encodings
     U = machine.sourceEmbedding(X)
     H = machine.encoder(U)
-    # compute output embeddings
-    V = machine.targetEmbedding(Y)
 
-    s = H[:,end]
+    V = machine.targetEmbedding(Y)
+    s = H[:,m]
+    machine.decoder.init = s
     function g(j::Int)
         o = vcat(s, V[:,j])
         s = machine.decoder(o)
+        return s
     end
-    os = [g(j) for j=1:size(H,2)]
+    os = [g(j) for j=1:n]
     O = Flux.stack(os, 2)
     machine.linear(O)
 end
 
-function model(Xb, Yb, machine)
-    Flux.reset!(machine.encoder)
-    Flux.reset!(machine.decoder)
-    map((X, Y) -> model(X, Y, machine), Xb, Yb)
+function model(Xb, Yb, paddingX, paddingY, machine)
+    map((X, Y) -> model(X, Y, paddingX, paddingY, machine), Xb, Yb)
 end
 
 function train(options)
     pairs = readCorpusEuroparl(options)
     sourceSentences = map(pair -> pair[1], pairs)
     targetSentences = map(pair -> pair[2], pairs)
-    sourceDict = vocab(sourceSentences, options); saveIndex(sourceDict, options[:sourceDictPath])
-    targetDict = vocab(targetSentences, options); saveIndex(targetDict, options[:targetDictPath])
+    sourceDict = vocab(sourceSentences, options); 
+    targetDict = vocab(targetSentences, options); 
     m, n = length(sourceDict), length(targetDict)
     sourceDict[options[:UNK]] = m+1; sourceDict[options[:EOS]] = m+2; sourceDict[options[:PAD]] = m+3
     targetDict[options[:UNK]] = n+1; targetDict[options[:EOS]] = n+2; targetDict[options[:PAD]] = n+3
+    saveIndex(sourceDict, options[:sourceDictPath])
+    saveIndex(targetDict, options[:targetDictPath])
 
     Xbs, Ybs = batch(pairs, sourceDict, targetDict, options)
     dataset = collect(zip(Xbs, Ybs))
@@ -107,7 +114,7 @@ function train(options)
     @info string("number of batches = ", length(Xbs))
 
     sourceEmbedding = Embedding(m+3, options[:inputSize])
-    encoder = GRU(options[:inputSize], options[:hiddenSize])
+    encoder = BiGRU(options[:inputSize], options[:hiddenSize])
     targetEmbedding = Embedding(n+3, options[:outputSize])
     decoder = GRU(options[:hiddenSize] + options[:outputSize], options[:hiddenSize])
     linear = Dense(options[:hiddenSize], n+3)
@@ -116,11 +123,12 @@ function train(options)
     machine = Machine(sourceEmbedding, encoder, targetEmbedding, decoder, linear)
 
     # We need to explicitly program a loss function which does not take into account of padding labels.
+    paddingX = sourceDict[options[:PAD]]
     paddingY = targetDict[options[:PAD]]
     maxSeqLen = options[:maxSequenceLength]
 
     function loss(Xb, Yb)
-        Ŷb = model(Xb, Yb, machine)
+        Ŷb = model(Xb, Yb, paddingX, paddingY, machine)
         Zb = map(Y -> Flux.onehotbatch(Y, 1:n+3), Yb)
         J = 0
         # run through the batch and aggregate loss values
@@ -128,7 +136,7 @@ function train(options)
             k = maxSeqLen
             # find the last position of non-padded element
             while (Yb[t][k] == paddingY) k = k - 1; end
-            J += Flux.logitcrossentropy(Ŷb[t][1:k], Zb[t][1:k])
+            J += Flux.logitcrossentropy(Ŷb[t][:,1:k], Zb[t][:,1:k])
         end
         return J
     end
@@ -139,7 +147,7 @@ function train(options)
     evalcb = function()
         ℓ = sum(loss(dataset[i]...) for i=1:min(100,length(dataset)))
         @info string("\tloss = ", ℓ)
-        trainingAccuracy = evaluate(machine, Xbs, Ybs, paddingY, maxSeqLen)
+        trainingAccuracy = evaluate(machine, Xbs, Ybs, paddingX, paddingY, maxSeqLen)
         @info string("\tloss = ", ℓ, ", training accuracy = ", trainingAccuracy)
         write(file, string(ℓ, ',', trainingAccuracy, "\n"))
     end
@@ -150,7 +158,7 @@ function train(options)
     @time while (epoch <= options[:numEpochs]) 
         @info "Epoch $epoch, times = $times"
         Flux.train!(loss, params(layers), dataset, optimizer, cb = Flux.throttle(evalcb, 60))
-        accuracy = evaluate(machine, Xbs, Ybs, paddingY, maxSeqLen)
+        accuracy = evaluate(machine, Xbs, Ybs, paddingX, paddingY, maxSeqLen)
         if bestAccuracy < accuracy
             bestAccuracy = accuracy
             times = 0
@@ -170,15 +178,15 @@ function train(options)
     @save options[:modelPath] machine
 
     @info "Evaluating the model on the training set..."
-    accuracy = evaluate(machine, Xbs, Ybs, paddingY, maxSeqLen)
+    accuracy = evaluate(machine, Xbs, Ybs, paddingX, paddingY, maxSeqLen)
     @info "Training accuracy = $accuracy"
     machine
 end
 
-function evaluate(machine, Xbs, Ybs, paddingY, maxSeqLen)
+function evaluate(machine, Xbs, Ybs, paddingX, paddingY, maxSeqLen)
     numBatches = length(Xbs)
     @floop ThreadedEx(basesize=numBatches÷options[:numCores]) for i=1:numBatches
-        Ŷb = Flux.onecold.(model(Xbs[i], Ybs[i], machine))
+        Ŷb = Flux.onecold.(model(Xbs[i], Ybs[i], paddingX, paddingY, machine))
         Yb = Ybs[i]
         # number of tokens and number of matches in this batch
         tokens, matches = 0, 0
