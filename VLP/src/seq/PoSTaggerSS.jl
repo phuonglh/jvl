@@ -183,7 +183,7 @@ function model(Xb, Y0b, machine)
         Flux.reset!(machine.encoder)
         H = encode(X, machine.embedding, machine.encoder)
         # take the last state of the encoder as the initial state of the decoder
-        machine.decoder.state0 = machine.encoder.state[:,end]
+        # machine.decoder.state = machine.encoder.state[:,end]
         Ŷ = decode(H, Y0, machine.attention, machine.decoder)
         Flux.reset!(machine.decoder)
         machine.linear(Ŷ)
