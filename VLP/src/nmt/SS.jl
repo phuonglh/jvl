@@ -80,7 +80,7 @@ function model(X::Array{Int}, Y::Array{Int}, paddingX, paddingY, machine)
 
     V = machine.targetEmbedding(Y)
     s = H[:,m]
-    machine.decoder.init = s
+    machine.decoder.state0 = s
     function g(j::Int)
         o = vcat(s, V[:,j])
         s = machine.decoder(o)
