@@ -73,10 +73,15 @@ function model(X::Array{Int}, Y::Array{Int}, machine)
     H = machine.encoder(U)
     # compute output embeddings
     V = machine.targetEmbedding(Y)
+
     s = H[:,end]
-    S = vcat(repeat(s, 1, size(V, 2)), V)
-    # decode output
-    machine.linear(machine.decoder(S))
+    function g(j::Int)
+        o = vcat(s, V[:,j])
+        s = machine.decoder(o)
+    end
+    os = [g(j) for j=1:size(H,2)]
+    O = Flux.stack(os, 2)
+    machine.linear(O)
 end
 
 function model(Xb, Yb, machine)
@@ -102,10 +107,10 @@ function train(options)
     @info string("number of batches = ", length(Xbs))
 
     sourceEmbedding = Embedding(m+3, options[:inputSize])
-    encoder = GRU(options[:inputSize], options[:encoderSize])
+    encoder = GRU(options[:inputSize], options[:hiddenSize])
     targetEmbedding = Embedding(n+3, options[:outputSize])
-    decoder = GRU(options[:encoderSize] + options[:outputSize], options[:decoderSize])
-    linear = Dense(options[:decoderSize], n+3)
+    decoder = GRU(options[:hiddenSize] + options[:outputSize], options[:hiddenSize])
+    linear = Dense(options[:hiddenSize], n+3)
 
     layers = Chain(sourceEmbedding, encoder, targetEmbedding, decoder, linear)
     machine = Machine(sourceEmbedding, encoder, targetEmbedding, decoder, linear)
