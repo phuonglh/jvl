@@ -202,3 +202,6 @@ function evaluate(machine, Xbs, Ybs, paddingX, paddingY, maxSeqLen)
     100 * numMatches/numTokens
 end
 
+function predict(machine, X, sourceDict, targetDict, options)::Array{String}
+    # TODO
+end

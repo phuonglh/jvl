@@ -175,7 +175,7 @@ function decode(H::Array{Float32,2}, Y0::Array{Int,2}, attention, decoder)
     Hm = H[:, 1:m]
     ŷs = [decode(Hm, y0, attention, decoder) for y0 in y0s]
     # stack the output array into a 2-d matrix of size (hiddenSize x m)
-    hcat(ŷs...)
+    reduce(hcat, ŷs) # faster than hcat(ŷs...)
 end
 
 function model(Xb, Y0b, machine)
@@ -183,7 +183,7 @@ function model(Xb, Y0b, machine)
         Flux.reset!(machine.encoder)
         H = encode(X, machine.embedding, machine.encoder)
         # take the last state of the encoder as the initial state of the decoder
-        # machine.decoder.state = machine.encoder.state[:,end]
+        # machine.decoder.state = machine.encoder.state[:,end] # TODO
         Ŷ = decode(H, Y0, machine.attention, machine.decoder)
         Flux.reset!(machine.decoder)
         machine.linear(Ŷ)
@@ -292,6 +292,7 @@ function train(options::Dict{Symbol,Any}, lr=1E-4)
         validationAccuracy = evaluate(machine, Ubs, Vbs, Wbs, options)
         @info string("\tloss = ", ℓ, ", training accuracy = ", trainingAccuracy, ", validation accuracy = ", validationAccuracy)
         write(file, string(ℓ, ',', trainingAccuracy, ',', validationAccuracy, "\n"))
+        @save options[:modelPath] machine
     end
     # train the model until the validation accuracy decreases 2 consecutive times
     t = 1
