@@ -49,8 +49,8 @@ function optionPricing(params::Params, stocks::Array{Float64,2}, type::Char='E')
     r, T, q, K = params.r, params.T, params.q, params.K
     position = params.position
 
-    #f(u, v) = exp(-r*T/n)*(q*u + (1-q)*v)
-    f(u, v) = (q*u + (1-q)*v)/(1+r)
+    f(u, v) = exp(-r*T/n)*(q*u + (1-q)*v)
+    #f(u, v) = (q*u + (1-q)*v)/(1+r)
     options = zeros(n+1, n+1)
     # fill the last column
     for i=1:n+1
@@ -106,6 +106,15 @@ function q4()
     payoff = max.(stocks .- paramsQ2Q5.K, 0)
     Δ = max.(payoff - options, 0)
 end
+
+function q6()
+    stocks = stockPricing(paramsQ6Q7)
+    futures = futurePricing(paramsQ6Q7, stocks)
+    options = optionPricing(paramsQ6Q7, futures, 'A')
+    payoff = max.(futures .- paramsQ6Q7.K, 0)
+    Δ = max.(payoff - options, 0)
+end
+
 
 function q8()
     stocksC = stockPricing(paramsQ8_C)
