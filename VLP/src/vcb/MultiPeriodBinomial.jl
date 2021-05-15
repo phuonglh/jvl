@@ -50,11 +50,11 @@ function optionPricing(params::Params, stocks::Array{Float64,2}, type::Char='E')
     position = params.position
 
     f(u, v) = exp(-r*T/n)*(q*u + (1-q)*v)
-    #f(u, v) = (q*u + (1-q)*v)/(1+r)
+    # (u, v) = (q*u + (1-q)*v)/(1+r)
     options = zeros(n+1, n+1)
     # fill the last column
     for i=1:n+1
-        options[i, n+1] = max(position * (stocks[i,n+1] - K), 0)
+        options[i, n+1] = max(position*(stocks[i,n+1] - K), 0)
     end
     # fill columns n, n-1,...,1 backwards
     for t=n:-1:1
@@ -64,9 +64,13 @@ function optionPricing(params::Params, stocks::Array{Float64,2}, type::Char='E')
     end
     if type == 'E' # European
         return options
-    else # American option pricing
+    else # American
         payoff = max.(position * (stocks .- K), 0)
-        return map((a, b) -> max(a, b), options, payoff)
+        A = map((a, b) -> max(a, b), options, payoff)
+        for t=1:n
+            A[t+1:n+1,t] .= 0
+        end
+        return A
     end
 end
 
@@ -76,7 +80,7 @@ function futurePricing(params::Params, stocks::Array{Float64,2})
     # compute the future lattice
     futures = zeros(n+1, n+1)
     # fill the last column
-    futures[:, n+1] = stocks[:, n]
+    futures[:, n+1] = stocks[:, n+1]
     # fill columns n, n-1,...,1 backwards
     for t=n:-1:1
         for i=1:t
@@ -103,18 +107,33 @@ end
 function q4()
     stocks = stockPricing(paramsQ2Q5)
     options = optionPricing(paramsQ2Q5, stocks, 'A')
-    payoff = max.(stocks .- paramsQ2Q5.K, 0)
+    position, K = paramsQ2Q5.position, paramsQ2Q5.K
+    payoff = max.(position*(K .- stocks), 0)
+    n = paramsQ2Q5.n
+    for t=1:n
+        payoff[t+1:n+1,t] .= 0
+    end
     Δ = max.(payoff - options, 0)
 end
 
 function q6()
     stocks = stockPricing(paramsQ6Q7)
-    futures = futurePricing(paramsQ6Q7, stocks)
-    options = optionPricing(paramsQ6Q7, futures, 'A')
-    payoff = max.(futures .- paramsQ6Q7.K, 0)
-    Δ = max.(payoff - options, 0)
+    options = optionPricing(paramsQ6Q7, stocks, 'A')
+    return options
 end
 
+function q7()
+    stocks = stockPricing(paramsQ6Q7)
+    futures = futurePricing(paramsQ6Q7, stocks)
+    options = optionPricing(paramsQ6Q7, futures, 'A')
+    position, K = paramsQ6Q7.position, paramsQ6Q7.K
+    payoff = max.(position*(K .- futures), 0)
+    n = paramsQ6Q7.n
+    for t=1:n
+        payoff[t+1:n+1,t] .= 0
+    end
+    Δ = max.(payoff - options, 0)
+end
 
 function q8()
     stocksC = stockPricing(paramsQ8_C)
