@@ -23,10 +23,16 @@ struct Params
 end 
 
 # The following parameters are for testing, the prices C0 must be 5.21
-paramsTest = Params(0.50, 100, 0.2, 0.02, 0.01, 10, 100, -1)
+paramsTest0 = Params(0.50, 100, 0.2, 0.02, 0.01, 10, 100, -1)
+# Another test case: C0=100, F0=100.25, O0 (European) = 2.417, O0 (American) = 2.417
+paramsTest1 = Params(0.25, 100, 0.3, 0.02, 0.01, 10, 110, 1)
+# Yet another test case: C0=100, F0=100.25, O0 (European) = 12.118, O0 (American) = 12.118
+paramsTest2 = Params(0.25, 100, 0.3, 0.02, 0.01, 10, 110, -1)
+
 paramsQ1 = Params(0.25, 100, 0.3, 0.02, 0.01, 15, 110, 1)
 paramsQ2Q5 = Params(0.25, 100, 0.3, 0.02, 0.01, 15, 110, -1)
-paramsQ6Q7 = Params(0.25*10/15, 100, 0.3, 0.02, 0.01, 10, 110, +1)
+paramsQ6Q7 = Params(0.25*10/15, 100, 0.3, 0.02, 0.01, 15, 110, +1)
+
 # Put/Call option of Q8
 paramsQ8_C = Params(0.25, 100, 0.3, 0.02, 0.01, 15, 100, +1)
 paramsQ8_P = Params(0.25, 100, 0.3, 0.02, 0.01, 15, 100, -1)
@@ -50,13 +56,12 @@ function optionPricing(params::Params, stocks::Array{Float64,2}, type::Char='E')
     r, T, q, K = params.r, params.T, params.q, params.K
     position = params.position
 
-    f(u, v) = exp(-r*T/n)*(q*u + (1-q)*v)
-    # (u, v) = (q*u + (1-q)*v)/(1+r)
     options = zeros(n+1, n+1)
     # fill the last column
     for i=1:n+1
         options[i, n+1] = max(position*(stocks[i,n+1] - K), 0)
     end
+    f(u, v) = exp(-r*T/n)*(q*u + (1-q)*v)
     # fill columns n, n-1,...,1 backwards
     for t=n:-1:1
         for i=1:t
@@ -78,15 +83,16 @@ end
 
 function futurePricing(params::Params, stocks::Array{Float64,2})
     n, q = params.n, params.q
-    g(u, v) = q*u + (1-q)*v
+    r, T = params.r, params.T
     # compute the future lattice
     futures = zeros(n+1, n+1)
     # fill the last column
     futures[:, n+1] = stocks[:, n+1]
+    f(u, v) = exp(-r*T/n)*(q*u + (1-q)*v)
     # fill columns n, n-1,...,1 backwards
     for t=n:-1:1
         for i=1:t
-            futures[i,t] = g(futures[i,t+1], futures[i+1,t+1])
+            futures[i,t] = f(futures[i,t+1], futures[i+1,t+1])
         end
     end
     return futures
@@ -118,9 +124,17 @@ function q4()
     Δ = max.(payoff - options, 0)
 end
 
+function q5()
+    # Test the quality: a == b    
+    # a = P0 + S0 * exp(-c*T/n) 
+    # b = C0 + K * exp(-r*T/n)    
+end
+
 function q6()
     stocks = stockPricing(paramsQ6Q7)
-    options = optionPricing(paramsQ6Q7, stocks, 'A')
+    futures = futurePricing(paramsQ6Q7, stocks)
+    params = Params(0.25, 100, 0.3, 0.02, 0.01, 15, 100, +1)
+    options = optionPricing(params, futures, 'A')
     return options
 end
 
@@ -129,7 +143,7 @@ function q7()
     futures = futurePricing(paramsQ6Q7, stocks)
     options = optionPricing(paramsQ6Q7, futures, 'A')
     position, K = paramsQ6Q7.position, paramsQ6Q7.K
-    payoff = max.(position*(K .- futures), 0)
+    payoff = max.(position*(K .- stocks), 0)
     n = paramsQ6Q7.n
     for t=1:n
         payoff[t+1:n+1,t] .= 0
@@ -138,27 +152,17 @@ function q7()
 end
 
 function q8()
-    stocksC = stockPricing(paramsQ8_C)
-    optionsC = optionPricing(paramsQ8_C, stocksC)
-    stocksP = stockPricing(paramsQ8_P)
-    optionsP = optionPricing(paramsQ8_P, stocksP)
-    cs = optionsC[:,11]
-    ps = optionsP[:,11]
-    (cs, ps)
-    maxVal = maximum(vcat(cs, ps))
-    # => max = 47.36189230863447 (on call), then go back European style
-    paramsQ8 = Params(0.25, maxVal, 0.3, 0.02, 0.01, 10, 100, +1)
-    stocks = stockPricing(paramsQ8) # 47.3619
-    options = optionPricing(paramsQ8, stocks)
+    stocks = stockPricing(paramsQ8_C)
+    futures = futurePricing(paramsQ8_C, stocks)
+
+    optionsC = optionPricing(paramsQ8_C, futures)
+    optionsP = optionPricing(paramsQ8_P, futures)
+
+    optionsMax = max.(optionsC, optionsP)[:,1:11]
+    # adjust the period from 15 to 10
+    paramsQ8 = Params(0.25, 100, 0.3, 0.02, 0.01, 10, 100, +1)
+    options = optionPricing(paramsQ8, optionsMax)
 end
 
-# ## From the result tables:
-# P0 = 12.3051 
-# C0 = 2.60408
-
-# a = P0 + S0 * exp(-c*T/n) 
-# b = C0 + K * exp(-r*T/n)
-
-# @info a, b
 
 
