@@ -54,7 +54,7 @@ end
 # compute an European option price at time t using two known values (u, v) at time t+1.
 # u is a upper value, v is a lower value
 function optionPricing(params::Params, stocks::Array{Float64,2}, type::Char='E')
-    n, S0, u, d = params.n, params.S0, params.u, params.d
+    n, u = params.n, params.u
     r, T, q, K = params.r, params.T, params.q, params.K
     position = params.position
 
@@ -86,7 +86,6 @@ end
 
 function futurePricing(params::Params, stocks::Array{Float64,2})
     n, q = params.n, params.q
-    r, T = params.r, params.T
     # compute the future lattice
     futures = zeros(n+1, n+1)
     # fill the last column
@@ -147,7 +146,7 @@ function q7()
     for t=1:n
         payoff[t+1:n+1,t] .= 0
     end
-    Δ = max.(payoff - options, 0)
+    return max.(payoff - options, 0)
 end
 
 function q8()
@@ -157,10 +156,25 @@ function q8()
     optionsC = optionPricing(paramsQ8_C, futures)
     optionsP = optionPricing(paramsQ8_P, futures)
 
-    optionsMax = max.(optionsC, optionsP)[:,1:11]
+    tenthCol = max.(optionsC, optionsP)[1:11, 11]
     # adjust the period from 15 to 10
-    paramsQ8 = Params(0.25, 100, 0.3, 0.02, 0.01, 10, 100, +1)
-    options = optionPricing(paramsQ8, optionsMax)
+    params = Params(0.25, 100, 0.3, 0.02, 0.01, 10, 100, +1)
+
+    n, u = params.n, params.u
+    r, T, q = params.r, params.T, params.q
+
+    options = zeros(n+1, n+1)
+    # fill the last column
+    options[:,n+1] = tenthCol
+    f(u, v) = exp(-r*T/n)*(q*u + (1-q)*v)
+    # fill columns n, n-1,...,1 backwards
+    for t=n:-1:1
+        for i=1:t
+            options[i,t] = f(options[i,t+1], options[i+1,t+1])
+        end
+    end
+    @info "Answer is $(options[1,1])"
+    return options
 end
 
 
