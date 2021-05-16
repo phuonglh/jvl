@@ -15,9 +15,11 @@ struct Params
     q
     function Params(T, S0, σ, r, c, n, K, position)
         u = exp(σ * sqrt(T/n))
-        d = 1/u
-        q = (exp((r - c)*T/n) - d)/(u - d)
         u = round(u, digits=4)
+        d = 1/u
+        d = round(d, digits=4)
+        q = (exp((r - c)*T/n) - d)/(u - d)
+        q = round(q, digits=4)
         return new(T, S0, σ, r, c, n, K, position, u, d, q)
     end
 end 
@@ -72,6 +74,7 @@ function optionPricing(params::Params, stocks::Array{Float64,2}, type::Char='E')
         return options
     else # American
         optionsA = zeros(n+1,n+1)
+        optionsA[:,n+1] = options[:,n+1]
         for t=n:-1:1
             for i=1:t
                 optionsA[i,t] = max(max(position*(stocks[i,t] - K), 0), options[i,t])
@@ -88,7 +91,7 @@ function futurePricing(params::Params, stocks::Array{Float64,2})
     futures = zeros(n+1, n+1)
     # fill the last column
     futures[:, n+1] = stocks[:, n+1]
-    f(u, v) = exp(-r*T/n)*(q*u + (1-q)*v)
+    f(u, v) = q*u + (1-q)*v
     # fill columns n, n-1,...,1 backwards
     for t=n:-1:1
         for i=1:t
@@ -117,10 +120,6 @@ function q4()
     options = optionPricing(paramsQ2Q5, stocks, 'A')
     position, K = paramsQ2Q5.position, paramsQ2Q5.K
     payoff = max.(position*(K .- stocks), 0)
-    n = paramsQ2Q5.n
-    for t=1:n
-        payoff[t+1:n+1,t] .= 0
-    end
     Δ = max.(payoff - options, 0)
 end
 
