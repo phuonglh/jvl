@@ -17,6 +17,7 @@ struct Params
         u = exp(σ * sqrt(T/n))
         d = 1/u
         q = (exp((r - c)*T/n) - d)/(u - d)
+        u = round(u, digits=4)
         return new(T, S0, σ, r, c, n, K, position, u, d, q)
     end
 end 
@@ -27,8 +28,8 @@ paramsQ1 = Params(0.25, 100, 0.3, 0.02, 0.01, 15, 110, 1)
 paramsQ2Q5 = Params(0.25, 100, 0.3, 0.02, 0.01, 15, 110, -1)
 paramsQ6Q7 = Params(0.25*10/15, 100, 0.3, 0.02, 0.01, 10, 110, +1)
 # Put/Call option of Q8
-paramsQ8_C = Params(0.25*15/10, 100, 0.3, 0.02, 0.01, 10, 100, +1)
-paramsQ8_P = Params(0.25*15/10, 100, 0.3, 0.02, 0.01, 10, 100, -1)
+paramsQ8_C = Params(0.25, 100, 0.3, 0.02, 0.01, 15, 100, +1)
+paramsQ8_P = Params(0.25, 100, 0.3, 0.02, 0.01, 15, 100, -1)
 
 function stockPricing(params::Params)
     n, S0, u, d = params.n, params.S0, params.u, params.d
@@ -65,12 +66,13 @@ function optionPricing(params::Params, stocks::Array{Float64,2}, type::Char='E')
     if type == 'E' # European
         return options
     else # American
-        payoff = max.(position * (stocks .- K), 0)
-        A = map((a, b) -> max(a, b), options, payoff)
-        for t=1:n
-            A[t+1:n+1,t] .= 0
+        optionsA = zeros(n+1,n+1)
+        for t=n:-1:1
+            for i=1:t
+                optionsA[i,t] = max(max(position*(stocks[i,t] - K), 0), options[i,t])
+            end
         end
-        return A
+        return optionsA
     end
 end
 
@@ -140,6 +142,14 @@ function q8()
     optionsC = optionPricing(paramsQ8_C, stocksC)
     stocksP = stockPricing(paramsQ8_P)
     optionsP = optionPricing(paramsQ8_P, stocksP)
+    cs = optionsC[:,11]
+    ps = optionsP[:,11]
+    (cs, ps)
+    maxVal = maximum(vcat(cs, ps))
+    # => max = 47.36189230863447 (on call), then go back European style
+    paramsQ8 = Params(0.25, maxVal, 0.3, 0.02, 0.01, 10, 100, +1)
+    stocks = stockPricing(paramsQ8) # 47.3619
+    options = optionPricing(paramsQ8, stocks)
 end
 
 # ## From the result tables:
