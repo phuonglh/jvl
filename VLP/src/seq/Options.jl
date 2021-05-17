@@ -32,14 +32,14 @@ optionsVLSP2010 = Dict{Symbol,Any}(
 
 # For Vietnamese PoS tagging and dependency parsing on the Vietnamese UD treebank
 optionsVUD = Dict{Symbol,Any}(
-    :minFreq => 2,
+    :minFreq => 1,
     :lowercase => true,
     :vocabSize => 2^16,
     :wordSize => 25,
     :shapeSize => 4,
     :posSize => 8,
-    :hiddenSize => 64,
-    :maxSequenceLength => 40,
+    :hiddenSize => 128,
+    :maxSequenceLength => 20,
     :batchSize => 32,
     :numEpochs => 100,
     :trainCorpus => string(pwd(), "/dat/dep/vie/vi_vtb-ud-train.conllu"),
