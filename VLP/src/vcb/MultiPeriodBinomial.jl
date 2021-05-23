@@ -1,6 +1,8 @@
 # Multi-period Binomial Model for Option Pricing
 # phuonglh@gmail.com
 
+module Stock
+
 struct Params
     T   # years
     S0  # initial price
@@ -177,5 +179,6 @@ function q8()
     return options
 end
 
+end # module
 
 
