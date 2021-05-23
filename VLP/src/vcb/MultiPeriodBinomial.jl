@@ -1,5 +1,6 @@
 # Multi-period Binomial Model for Option Pricing
 # phuonglh@gmail.com
+# Week 4: Stock and options pricing
 
 module Stock
 
