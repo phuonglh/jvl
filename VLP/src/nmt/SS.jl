@@ -204,4 +204,5 @@ end
 
 function predict(machine, X, sourceDict, targetDict, options)::Array{String}
     # TODO
+    # implement beam search algorithm
 end

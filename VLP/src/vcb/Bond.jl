@@ -53,6 +53,26 @@ function zcbPricing(params, targetValues, discounted=true)
     return zcb
 end
 
+"Call=1, put=-1"
+function americanZeroOptionPricing(params, targetValues, strike, expiration, call=1)
+    n, q = params.n, params.q
+    @assert expiration <= n
+    rates = ratePricing(params)
+    zcb = zcbPricing(params, targetValues)
+    lastValues = max.(0, call .* (zcb[:, expiration+1][1:expiration+1]) .- strike)
+    n = expiration
+    result = zeros(n+1, n+1)
+    result[:, n+1] = lastValues
+    f(u, v) = q*u + (1-q)*v
+    # fill columns n, n-1,...,1 backwards
+    for t=n:-1:1
+        for i=1:t
+            result[i,t] = max(call * (zcb[i,t] - strike), f(result[i,t+1], result[i+1,t+1])/(1+rates[i,t]))
+        end
+    end
+    return result
+end
+
 "Price a n-periods coupon-bearing bond given a coupon rate."
 function couponBearingBondPricing(params, couponRate)
     S0, n, q = params.S0, params.n, params.q
@@ -214,5 +234,48 @@ function test8()
     elementaryPricing(params)
 end
 
+function test9()
+    params = Params(100, 4, 0.06, 1.25, 0.9, 0.5)
+    targetValues = fill(100, params.n+1)
+    americanZeroOptionPricing(params, targetValues, 88., 3, -1)
+end 
+
+# Week 5 answers
+function q1()
+    params = Params(100, 10, 0.05, 1.1, 0.9, 0.5)
+    targetValues = fill(100, params.n+1)
+    zcbPricing(params, targetValues)
+end
+
+function q2()
+    params = Params(100, 10, 0.05, 1.1, 0.9, 0.5)
+    forwardPricing(params, 0., 4)
+end
+
+function q3()
+    params = Params(100, 10, 0.05, 1.1, 0.9, 0.5)
+    futurePricing(params, 0., 4)
+end
+
+function q4()
+    params = Params(100, 10, 0.05, 1.1, 0.9, 0.5)
+    targetValues = fill(100, params.n+1)
+    americanZeroOptionPricing(params, targetValues, 80., 6, 1)
+end
+
+function q5()
+    params = Params(1, 10, 0.05, 1.1, 0.9, 0.5)
+    swaps = swapPricing(params, 0.045, 11)
+    # at time t = 1, we have a = 0.0723544, b = -0.00226851
+    # therefore, the answer is value = [q*a + (1-q)*a]/(1 + 0.05)
+    # value * 10^6
+    swaps
+end
+
+function q6()
+    params = Params(100, 10, 0.05, 1.1, 0.9, 0.5)
+    swaptions = swaptionPricing(params, 0.045, 11, 0., 5)
+    swaptions[1,1]*10^6
+end
 
 end # module
