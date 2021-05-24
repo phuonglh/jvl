@@ -141,6 +141,31 @@ function swaptionPricing(params, swapStrike, swapExpiration, swaptionStrike, swa
     return zcbPricing(params, targetValues[1:swaptionExpiration+1], true)
 end
 
+"The forward equation"
+function elementaryPricing(params)
+    n, S0, q = params.n, params.S0, params.q
+    rates = ratePricing(params)
+    result = zeros(n+1, n+1)
+    result[1,1] = 1
+    for t=1:n
+        result[1,t+1] = q*result[1,t]/(1 + rates[1,t])
+        result[t+1,t+1] = (1-q)*result[t,t]/(1 + rates[t,t])
+    end
+    for t=2:n
+        for j=1:t-1
+            result[j+1,t+1] = q*result[j,t]/(1+rates[j,t]) + (1-q)*result[j+1,t]/(1+rates[j+1,t])
+        end
+    end
+    zcb = zeros(n+1)
+    spotRates = zeros(n+1)
+    for t=2:n+1
+        zcb[t] = S0*sum(result[:,t])
+        spotRates[t] = (S0/zcb[t])^(1/(t-1))-1
+    end    
+    return zip(round.(zcb, digits=4), round.(spotRates, digits=4))
+end
+
+
 # 4-year zero-coupon bond pricing
 function test1()
     params = Params(1, 4, 0.06, 1.25, 0.9, 0.5)
@@ -182,6 +207,11 @@ end
 function test7()
     params = Params(1, 5, 0.06, 1.25, 0.9, 0.5)
     swaptionPricing(params, 0.05, 6, 0., 3)
+end
+
+function test8()
+    params = Params(100, 6, 0.06, 1.25, 0.9, 0.5)
+    elementaryPricing(params)
 end
 
 
