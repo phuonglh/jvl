@@ -3,7 +3,7 @@
 # April, 2021 for a demonstration purpose.
 # phuonglh@gmail.com
 
-module Intents
+module Intent
 
 using CSV
 using DataFrames

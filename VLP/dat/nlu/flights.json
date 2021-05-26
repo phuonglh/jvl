@@ -1,0 +1,49 @@
+{
+    "nlu": [
+    {
+        "intent": "greet",
+        "examples": [
+            "Hey",
+            "Hi",
+            "hey there [Phuong](name)"
+        ]
+    },
+    {
+        "intent": "language",
+        "examples": [
+            "what language do you speak?",
+            "do you only handle english?",
+            "what language should I speak to you?"
+        ]
+    },
+    {
+        "intent": "booking",
+        "examples": [
+            "tôi muốn đặt vé",
+            "tôi muốn đặt vé đi [TP. Hồ Chí Minh](destination)",
+            "vé đi [Đà Nẵng](destination)",
+            "đặt vé đi [Hà Nội](destination)",
+            "còn vé đi [Nha Trang](destination) [ngày mai](time) không?",
+            "tôi cần đi [Pleiku](destination), có chuyến nào bay [chiều ngày 26](time) không?"
+        ]
+    },
+    {
+        "intent": "start",
+        "examples": [
+            "[Nha Trang](start)",
+            "tôi bay từ [Hà Nội](start)",
+            "tôi đi từ [Sài Gòn](start)",
+            "tôi đi từ [Huế](start)",
+            "mình ở [Hải Phòng](start)"
+        ]
+    },
+    {
+        "intent": "promotion",
+        "examples": [
+            "đợt này có khuyến mại gì không?",
+            "bay giờ nào thì có giảm giá",
+            "ngày nào có giảm giá"
+        ]
+    }
+    ]
+}

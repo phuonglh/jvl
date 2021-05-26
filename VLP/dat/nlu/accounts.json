@@ -1,0 +1,56 @@
+{
+    "nlu": [
+        {
+            "intent": "greeting",
+            "examples": [
+                "xin chào",
+                "hello",
+                "hi",
+                "hey"
+            ]
+        },
+        {
+            "intent": "goodbye",
+            "examples": [
+                "bye",
+                "tạm biệt",
+                "chào nhé"
+            ]
+        },
+        {
+            "intent": "balance",
+            "examples": [
+                "[tài khoản thẻ](account) của tôi còn bao nhiêu tiền?",
+                "số dư [tài khoản thẻ](account) của tôi?",
+                "cho biết tôi còn bao nhiêu tiền trong [tài khoản](account)?",
+                "số dư [tài khoản](account)?"                
+            ]
+        },
+        {
+            "intent": "transfer",
+            "examples": [
+                "chuyển khoản [1 triệu đồng](amount)",
+                "chuyển [2 triệu](amount) sang tài khoản [00220712](destination)",
+                "chuyển tiền cho tài khoản [00090915](destination)",
+                "tôi muốn chuyển tiền đi",
+                "đặt lệnh chuyển tiền"
+            ]
+        },
+        {
+            "intent": "withdraw",
+            "examples": [
+                "tôi muốn rút tiền mặt",
+                "rút [3 triệu đồng](amount)",
+                "rút [1 triệu](amount) từ tài khoản",
+                "rút tiền"
+            ]
+        },
+        {
+            "intent": "transactions",
+            "examples": [
+                "xem lịch sử giao dịch",
+                "xem hoạt động của tài khoản"
+            ]
+        }
+    ]
+}
