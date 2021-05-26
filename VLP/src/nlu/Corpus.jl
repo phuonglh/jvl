@@ -1,124 +1,67 @@
+# phuonglh@gmail.com
+
 module Corpus
 
-export Token, Sentence, readCorpusUD, readCorpusCoNLL, readCorpusVLSP
+export read
 
-include("../tok/VietnameseTokenizer.jl")
-using .VietnameseTokenizer
+using DataFrames
+using JSON3
 
-
-struct Token
-    word::String
-    annotation::Dict{Symbol,String}
-end
-
-struct Sentence
-    tokens::Array{Token}
-end
 
 """
-    readCorpusUD(path, maxSentenceLength=40)
+    read(path)
 
-    Read a CoNLLU file to build dependency graphs. Each graph is a sentence.
+    Reads a .txt or .csv or .json file and build a data frame for the intent detection module.
+    The data frame should have two columns :intent and :text. The JSON data format should be similar 
+    to the `accounts.json` sample file.
 """
-function readCorpusUD(path::String, maxSentenceLength::Int=40)::Array{Sentence}
-    lines = filter(line -> !startswith(line, "#"), readlines(path))
-    append!(lines, [""])
-    sentences = Array{Sentence,1}()
-    tokens = []
-    for line in lines
-        parts = split(strip(line), r"\t+")
-        if length(parts) == 1
-            prepend!(tokens, [Token("ROOT", Dict(:id => "0", :lemma => "NA", :upos => "NA", :pos => "NA", :fs => "NA", :head => "NA", :label => "NA"))])
-            # add sentence if it is not too long...
-            if length(tokens) <= maxSentenceLength
-              push!(sentences, Sentence(tokens))
-            end
-            empty!(tokens)
-        else
-            word = parts[2]
-            fullLabel = parts[8]
-            colonIndex = findfirst(':', fullLabel)
-            label = if (colonIndex !== nothing) fullLabel[1:colonIndex-1] else fullLabel end
-            annotation = Dict(:id => parts[1], :lemma => parts[3], :upos => parts[4], :pos => parts[5], :fs => parts[6], :head => parts[7], :label => label)
-            push!(tokens, Token(word, annotation))
-        end
-    end
-    sentences
-end
-
-"""
-    readCorpusCoNLL(path, threeColumns::Bool=false, maxSentenceLength=40)
-
-    Read a CoNLL-2003 file to build named-entity tagged sentences. The Bahasa Indonesia 
-    corpus has 3 columns: word, part-of-speech, and NE tag; if reading this corpus, we 
-    need to set the last argument to true to use the default chunk information "_" for all 
-    tokens.
-"""
-function readCorpusCoNLL(path::String, threeColumns::Bool=false, maxSentenceLength::Int=40)::Array{Sentence}
-    function createToken(line::String)::Token
-        parts = string.(split(line, r"[\s]+"))
-        annotation = if threeColumns 
-            Dict(:p => parts[2], :c => "_", :e => parts[3], :s => VietnameseTokenizer.shape(parts[1]))
-        else
-            Dict(:p => parts[2], :c => parts[3], :e => parts[4], :s => VietnameseTokenizer.shape(parts[1]))
-        end
-        Token(parts[1], annotation)
-    end
-
-    sentences = Array{Sentence,1}()
-    lines = readlines(path)
-    n = length(lines)
-    indexedLines = collect(zip(1:n, map(line -> strip(line), lines)))
-    emptyIndices = map(p -> p[1], filter(p -> isempty(p[2]), indexedLines))
-    j = 1
-    for i in emptyIndices
-        xs = lines[j:i-1]
-        if (isempty(xs))
-            @warn ("Problematic line: $i")
-        end
-        tokens = createToken.(xs)
-        push!(sentences, Sentence(tokens))
-        j = i+1
-    end
-    sentences
-end
-
-"""
-    readCorpusVLSP(path, maxSentenceLength)
-
-    Read VLSP-2010 corpus for part-of-speech tagging
-"""
-function readCorpusVLSP(path::String, maxSentenceLength::Int=40)::Array{Sentence}
-    sentences = Array{Sentence,1}()
-    lines = readlines(path)
-    for line in lines
-        wts = string.(split(strip(line), r"[\s]+"))
-        tokens = Token[]
-        for wt in wts
-            annotation = Dict{Symbol,String}()
-            parts = string.(split(wt, r"/"))
-            if (length(parts) == 2)
-                annotation[:pos] = parts[2]
-                token = Token(parts[1], annotation)
-                push!(tokens, token)
-            else
-                j = findlast("/", wt)[1]
-                if (j == length(wt)) # the case ///
-                    annotation[:pos] = "/"
-                    push!(tokens, Token("/", annotation))
-                else
-                    w = wt[1:j-1]
-                    annotation[:pos] = wt[j+1:end]
-                    push!(tokens, Token(w, annotation))
+function readIntents(path::String)::DataFrame
+    if endswith(path, ".txt") || endswith(path, ".csv")
+        df = DataFrame(CSV.File(path))
+        dropmissing!(df)
+    else
+        if (endswith(path, ".json"))
+            json_st = read(path, String)
+            samples = JSON3.read(json_st)[:nlu]
+            intents = Array{String,1}()
+            texts = Array{String,1}()
+            for sample in samples
+                i = sample[:intent]
+                ts = sample[:examples]
+                for t in ts
+                    push!(intents, i)
+                    # remove values in t before adding it to the array
+                    push!(texts, replace(t, r"\[[\w\s]+\]" => ""))
                 end
             end
-            annotation[:upos] = "NA"
+            df = DataFrame(:intent => intents, :text => texts)
+        else
+            DataFrame(:intent => [], :text => [])
         end
-        n = min(maxSentenceLength, length(tokens))
-        push!(sentences, Sentence(tokens[1:n]))
     end
-    # filter sentences...
-    filter(sentence -> length(sentence.tokens) <= maxSentenceLength, sentences)
+end
+
+"""
+    extractEntities(st)
+
+    Extracts an array of entities from a given string. If the input string contains type/value pairs such as 
+    "chuyển [2 triệu](amount) sang tài khoản [00220712](destination)"
+    then the function extracts the following list: [("2 triệu", "amount"), ("00220712", "destination")].
+"""
+function extractEntities(st::String)::Array{Tuple{String,String},1}
+    pattern = r"(?<value>\[[\w\s]+\])(?<type>\(\w+\))"
+    idx = 1
+    entities = Array{Tuple{String,String},1}()
+    while idx <= length(st)
+        m = match(pattern, st, idx)
+        if m === nothing
+            break
+        else
+            push!(entities, (m[:value][2:end-1], m[:type][2:end-1]))
+            idx = m.offset + length(m.match)
+        end
+    end
+    return entities
 end
 
 end # module

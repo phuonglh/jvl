@@ -22,6 +22,9 @@ include("Utils.jl")
 include("../tok/VietnameseTokenizer.jl")
 using .VietnameseTokenizer
 
+include("Corpus.jl")
+using .Corpus
+
 
 options = Dict{Symbol,Any}(
     :minFreq => 1,
@@ -31,8 +34,7 @@ options = Dict{Symbol,Any}(
     :maxSequenceLength => 10,
     :batchSize => 64,
     :numEpochs => 50,
-    # :corpusPath => string(pwd(), "/dat/nlu/xliuhw/AnnotatedData/NLU-Data-Home-Domain-Annotated-All.csv"),
-    :corpusPath => string(pwd(), "/dat/nlu/xliuhw/AnnotatedData/NLU-Data-Home-Domain-Annotated-All.csv.sample"),
+    :corpusPath => string(pwd(), "/dat/nlu/sample.txt"),
     :modelPath => string(pwd(), "/dat/nlu/model.bson"),
     :wordPath => string(pwd(), "/dat/nlu/word.txt"),
     :labelPath => string(pwd(), "/dat/nlu/label.txt"),
@@ -62,17 +64,6 @@ function tokenize(utterance::String)::Array{String}
     end
     tokens = VietnameseTokenizer.tokenize(utterance)
     map(token -> transform(token), tokens)
-end
-
-"""
-    readCorpus(path, sampling=true)
-
-    Reads an intent corpus given in a path and return a dataframe of two columns (`intent` and `text`).
-"""
-function readCorpus(path::String, sampling::Bool=true)::DataFrame
-    df = DataFrame(CSV.File(path))
-    ef = if !sampling select(df, :intent => :intent, :answer => :text) else df end
-    dropmissing!(ef)
 end
 
 """
@@ -229,37 +220,42 @@ function train(options)
     return encoder, accuracy
 end
 
-"""
-    evaluate(encoder, Xs, Ys, options)
+# """
+#     evaluate(encoder, Xs, Ys, options)
 
-    Evaluates the accuracy of the classifier w/o using threaded execution.
-"""
-function evaluate(encoder, Xs, Ys, options)
-    numBatches = length(Xs)
-    numMatches = 0
-    numSents = 0
-    for i=1:numBatches
-        Ŷb = Flux.onecold(encoder(Xs[i]) |> cpu) # fix an issue of Julia 1.5
-        Yb = Flux.onecold(Ys[i] |> cpu) 
-        matches = sum(Ŷb .== Yb)
-        numMatches += matches
-        numSents += length(Yb)
-    end
-    @info "Total matches = $(numMatches)/$(numSents)"
-    return 100 * (numMatches/numSents)
-end
-
+#     Evaluates the accuracy of the classifier w/o using threaded execution.
+# """
 # function evaluate(encoder, Xs, Ys, options)
 #     numBatches = length(Xs)
-#     @floop ThreadedEx(basesize=numBatches÷options[:numCores]) for i=1:numBatches
-#         Ŷb = Flux.onecold(encoder(Xs[i]))
-#         Yb = Flux.onecold(Ys[i])  
+#     numMatches = 0
+#     numSents = 0
+#     for i=1:numBatches
+#         Ŷb = Flux.onecold(encoder(Xs[i]) |> cpu) # fix an issue of Julia 1.5
+#         Yb = Flux.onecold(Ys[i] |> cpu) 
 #         matches = sum(Ŷb .== Yb)
-#         @reduce(numMatches += matches, numSents += length(Yb))
+#         numMatches += matches
+#         numSents += length(Yb)
 #     end
 #     @info "Total matches = $(numMatches)/$(numSents)"
 #     return 100 * (numMatches/numSents)
 # end
+
+"""
+    evaluate(encoder, Xs, Ys, options)
+
+    Evaluates the accuracy of the classifier using threaded execution.
+"""
+function evaluate(encoder, Xs, Ys, options)
+    numBatches = length(Xs)
+    @floop ThreadedEx(basesize=numBatches÷options[:numCores]) for i=1:numBatches
+        Ŷb = Flux.onecold(encoder(Xs[i]))
+        Yb = Flux.onecold(Ys[i])  
+        matches = sum(Ŷb .== Yb)
+        @reduce(numMatches += matches, numSents += length(Yb))
+    end
+    @info "Total matches = $(numMatches)/$(numSents)"
+    return 100 * (numMatches/numSents)
+end
 
 
 """

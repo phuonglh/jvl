@@ -1,4 +1,9 @@
 # phuonglh@gmail.com
+# Evolution des transactions de paiement numériques mondiales
+# https://www.visualcapitalist.com/digital-payment-adoption/
+# Evolution des fraudes par carte de crédit aux USA
+# https://shiftprocessing.com/credit-card-fraud-statistics/
+# 
 # For ML for Banking and Finance course
 
 using CSV
