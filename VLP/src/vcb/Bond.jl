@@ -163,7 +163,7 @@ end
 
 "The forward equation"
 function elementaryPricing(params)
-    n, S0, q = params.n, params.S0, params.q
+    n, S0, q = params.n + 1, params.S0, params.q
     rates = ratePricing(params)
     result = zeros(n+1, n+1)
     result[1,1] = 1
@@ -182,7 +182,7 @@ function elementaryPricing(params)
         zcb[t] = S0*sum(result[:,t])
         spotRates[t] = (S0/zcb[t])^(1/(t-1))-1
     end    
-    return zip(round.(zcb, digits=4), round.(spotRates, digits=4))
+    return Dict(:zcb => round.(zcb, digits=4), :spotRates => round.(spotRates, digits=4), :prices => round.(result, digits=4))
 end
 
 
@@ -230,7 +230,7 @@ function test7()
 end
 
 function test8()
-    params = Params(100, 6, 0.06, 1.25, 0.9, 0.5)
+    params = Params(100, 5, 0.06, 1.25, 0.9, 0.5)
     elementaryPricing(params)
 end
 
