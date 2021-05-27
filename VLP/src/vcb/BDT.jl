@@ -4,6 +4,8 @@
 
 module BDT
 
+using Optim
+
 mutable struct Params
     S0   # initial value
     n    # number of periods
@@ -51,16 +53,23 @@ function elementaryPricing(params)
         :prices => round.(result, digits=4), :rates => round.(rates, digits=4))
 end
 
-
-function test()
-    a = fill(5, 14)
+"Objective function of the example in the lecture."
+function J1(a::Array{Float64})
     b = 0.005
     params = Params(1.0, 13, a, b, 0.5)
     dict = elementaryPricing(params)
-
     marketSpotRates = [7.3, 7.62, 8.1, 8.45, 9.2, 9.64, 10.12, 10.45, 10.75, 11.22, 11.55, 11.92, 12.2, 12.32]
-    spotRates = dict[:spotRates][2:end]
-    # minimize the sum of square loss function...
+    predictedSpotRates = dict[:spotRates][2:end]
+    difference = marketSpotRates - predictedSpotRates
+    return difference'*difference
+end
+
+"Optimize the function to compute the best `a` parameters."
+function test1()
+    a = fill(5.0, 14)
+    result = optimize(J1, a, NelderMead())
+    @info result
+    return Optim.minimizer(result)
 end
 
 end # module
