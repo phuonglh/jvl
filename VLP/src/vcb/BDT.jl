@@ -54,7 +54,7 @@ function elementaryPricing(params)
 end
 
 "Objective function of the example in the lecture."
-function J1(a::Array{Float64})
+function J1(a)
     b = 0.005
     params = Params(1.0, 13, a, b, 0.5)
     dict = elementaryPricing(params)
@@ -66,10 +66,64 @@ end
 
 "Optimize the function to compute the best `a` parameters."
 function test1()
-    a = fill(5.0, 14)
-    result = optimize(J1, a, NelderMead())
+    # a = fill(5.0, 14)
+    a = [7.332489105428948,
+        8.029676325394634,
+        13.73286083383041,
+        9.890320815836553,
+        15.92697134077938,
+        16.0,
+        15.837510161796507,
+        16.0,
+        16.0,
+        8.081104180797322,
+        6.434309482154262,
+        6.771005509870793,
+        5.0,
+        15.042022199387727]
+    # result = optimize(J1, a, NelderMead())
+    # result = optimize(J1, a, SimulatedAnnealing(), Optim.Options(iterations=10^6))
+    # particle swarm optimization algorithm with box contraints
+    @time result = optimize(J1, a, ParticleSwarm(; lower = fill(5.0, 14), upper = fill(16., 14)), Optim.Options(iterations=10^6))
     @info result
     return Optim.minimizer(result)
 end
 
 end # module
+
+# 1485.232648 seconds (32.05 G allocations: 766.493 GiB, 6.09% gc time)
+# ┌ Info:  * Status: failure (reached maximum number of iterations)
+# │ 
+# │  * Candidate solution
+# │     Final objective value:     7.850000e-02
+# │ 
+# │  * Found with
+# │     Algorithm:     Particle Swarm
+# │ 
+# │  * Convergence measures
+# │     |x - x'|               = NaN ≰ 0.0e+00
+# │     |x - x'|/|x'|          = NaN ≰ 0.0e+00
+# │     |f(x) - f(x')|         = NaN ≰ 0.0e+00
+# │     |f(x) - f(x')|/|f(x')| = NaN ≰ 0.0e+00
+# │     |g(x)|                 = NaN ≰ 1.0e-08
+# │ 
+# │  * Work counters
+# │     Seconds run:   1485  (vs limit Inf)
+# │     Iterations:    1000000
+# │     f(x) calls:    15000014
+# └     ∇f(x) calls:   0
+# 14-element Array{Float64,1}:
+#   7.332489105428948
+#   8.029676325394634
+#  13.73286083383041
+#   9.890320815836553
+#  15.92697134077938
+#  16.0
+#  15.837510161796507
+#  16.0
+#  16.0
+#   8.081104180797322
+#   6.434309482154262
+#   6.771005509870793
+#   5.0
+#  15.042022199387727
