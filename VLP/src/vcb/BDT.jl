@@ -88,4 +88,69 @@ function test1()
     return Optim.minimizer(result)
 end
 
+mutable struct ParamsW5
+    S0   # initial value
+    n    # number of periods
+    r_00 # initial short-term rate
+    u    # rate of growth of short rate
+    d    # rate of decrease of short rate in each period
+    q    # risk-neutral prob. of an up-move
+end
+
+"Price short-term rate as in W5."
+function ratePricingW5(params)
+    n, u, d = params.n, params.u, params.d
+    rates = zeros(n+1, n+1)
+    rates[1,1] = params.r_00
+    for t=1:n
+        for j=0:t
+            rates[j+1,t+1] = rates[1,1]*u^(t-j)*d^(j)
+        end
+    end
+    return rates
+end
+
+function hazardRates(n, a, b)
+    rates = zeros(n+1, n+1)
+    rates[1,1] = a
+    for t=1:n
+        for i=0:t
+            rates[i+1,t+1] = a*b^(i - t/2)
+        end
+    end
+    return rates
+end
+
+"""
+    Price a zero-coupon bond with recovery at the present time given a target value vector.
+
+    Thre recovery rate R is on percentage, for example R=20 (do not use 0.2).
+"""
+function zcbWithRecovery(params, targetValues, a, b, R)
+    n, q = params.n, params.q
+    zcb = zeros(n+1, n+1)
+    # compute the short-term rate lattice
+    rates = ratePricingW5(params)
+    h = hazardRates(n, a, b)
+    # fill the last column
+    zcb[:, n+1] = targetValues
+    f(u, v, h_ti) = q*(1 - h_ti)*u + (1-q)*(1-h_ti)*v
+    # fill columns n, n-1,...,1 backwards
+    for t=n:-1:1
+        for i=1:t
+            h_it = h[i,t]
+            first = f(zcb[i,t+1], zcb[i+1,t+1], h_it)
+            second = h_it*R # q*h_it*R + (1-q)*h_it*R 
+            zcb[i,t] = (first + second)/(1+rates[i,t])
+        end
+    end
+    return zcb
+end
+
+function q3()
+    params = ParamsW5(100, 10, 0.05, 1.1, 0.9, 0.5)
+    targetValues = fill(100, params.n+1)
+    zcbWithRecovery(params, targetValues, 0.01, 1.01, 20) # 57.2103
+end
+
 end # module
