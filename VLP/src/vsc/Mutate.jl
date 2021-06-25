@@ -1,3 +1,5 @@
+module Mutate
+
 """
     Introduce spelling errors to a word by
     - swapping two adjacent characters, or
@@ -84,7 +86,7 @@ end
     INP: [tôi, đang ăn, cơm, tối]
     OUT: [tối/:replace, đng/:delete, ănp/:insert, cơm/:none, tiố/:swap]
 """
-function mutateSentence(tokens::Array{String}, alphabet::Array{Char}, mutation::Array{Symbol}=[:swap, :replace, :insert, :delete], β::Float64 = 0.1)::Array{Tuple{Symbol,String}}
+function mutateSentence(tokens::Array{String}, alphabet::Array{Char}, mutation::Array{Symbol}=[:swap, :replace, :insert, :delete], β::Float64 = 0.05)::Array{Tuple{Symbol,String}}
     f(x::String) = (rand() <= β) ? mutate(x, alphabet, mutation) : (:none, x)
     map(token -> f(token), tokens)
 end
@@ -95,7 +97,7 @@ end
     Mutates a sentence in the form of a string. First, we segment the sentence into 
     an array of syllables using whitespace characters. Next, we mutate that array. 
 """
-function mutateSentence(s::String, alphabet::Array{Char}, mutation::Array{Symbol}=[:swap, :replace, :insert, :delete], β::Float64 = 0.1)::Array{Tuple{Symbol,String}}
+function mutateSentence(s::String, alphabet::Array{Char}, mutation::Array{Symbol}=[:swap, :replace, :insert, :delete], β::Float64 = 0.05)::Array{Tuple{Symbol,String}}
     x = filter(token -> length(strip(token)) > 0, split(s, delimiters))
     mutateSentence(string.(x), alphabet, mutation, β)
 end
@@ -111,7 +113,7 @@ end
     Generate mutated versions of given sentences and write results to an output file. The default `mutation` operation is either swap 
     or replace which keep the length of the sentences the same before and after mutation.
 """
-function generate(sentences::Array{String}, outputPath::String, alphabet::Array{Char}, mutation::Array{Symbol} = [:swap, :replace], β::Float64 = 0.1)
+function generate(sentences::Array{String}, outputPath::String, alphabet::Array{Char}, mutation::Array{Symbol} = [:swap, :replace], β::Float64 = 0.05)
     # generate mutated data set and save to an external file for latter use
     ms = map(s -> mutateSentence(s, alphabet, mutation, β), sentences)
     file = open(outputPath, "w")
@@ -147,3 +149,5 @@ function generate(path::String)
     alphabet = ['%', '&', '-', '/', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '@', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', 'à', 'á', 'â', 'ã', 'è', 'é', 'ê', 'ì', 'í', 'ò', 'ó', 'ô', 'õ', 'ù', 'ú', 'ý', 'ă', 'đ', 'ĩ', 'ũ', 'ơ', 'ư', 'ạ', 'ả', 'ấ', 'ầ', 'ẩ', 'ẫ', 'ậ', 'ắ', 'ằ', 'ẳ', 'ẵ', 'ặ', 'ẹ', 'ẻ', 'ế', 'ề', 'ể', 'ễ', 'ệ', 'ỉ', 'ị', 'ọ', 'ỏ', 'ố', 'ồ', 'ổ', 'ỗ', 'ộ', 'ớ', 'ờ', 'ở', 'ỡ', 'ợ', 'ụ', 'ủ', 'ứ', 'ừ', 'ử', 'ữ', 'ự', 'ỳ', 'ỵ', 'ỷ', 'ỹ', '–']
     generate(sentences, string(path, ".inp"), alphabet, mutation)
 end
+
+end # module

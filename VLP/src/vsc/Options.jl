@@ -7,10 +7,10 @@ options = Dict{Symbol,Any}(
     :numEpochs => 40,
     :batchSize => 32, 
     :labels => [:n, :s, :r, :i, :d, :P], # :p is the padding symbol
-    :inputPath => string(pwd(), "/dat/vsc/200.txt.inp"),
-    :outputPath => string(pwd(), "/dat/vsc/200.txt.out"),
-    :modelPath => string(pwd(), "/dat/vsc/200.bson"),
-    :alphabetPath => string(pwd(), "/dat/vsc/200.alphabet"),
+    :inputPath => string(pwd(), "/dat/vsc/100.txt.inp"),
+    :outputPath => string(pwd(), "/dat/vsc/100.txt.out"),
+    :modelPath => string(pwd(), "/dat/vsc/100.bson"),
+    :alphabetPath => string(pwd(), "/dat/vsc/100.alphabet"),
     :gpu => false,
     :verbose => false
 )

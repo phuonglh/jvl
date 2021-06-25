@@ -42,8 +42,12 @@ function vectorize(tokens::Array{String}, alphabet::Array{Char}, mutations::Arra
     function boc(token::String, alphabet::Array{Char})
         u, v = nextind(token, 1), prevind(token, lastindex(token))
         subtoken = token[u:v]
-        a = onehotbatch(collect(subtoken), alphabet)
-        sum(a, dims=2)
+        if (!isempty(subtoken))
+            a = onehotbatch(collect(subtoken), alphabet)
+            return sum(a, dims=2)
+        else
+            return zeros(length(alphabet))
+        end
     end
     # truncate or padding input sequences to have the same maxSequenceLength
     n = options[:maxSequenceLength]
@@ -51,7 +55,7 @@ function vectorize(tokens::Array{String}, alphabet::Array{Char}, mutations::Arra
         (tokens[1:n], mutations[1:n])
     else
         for t=1:(n-length(tokens))
-            push!(tokens, "[PAD]")
+            push!(tokens, "abc")
             push!(mutations, :P)
         end
         (tokens, mutations)
@@ -70,9 +74,9 @@ function vectorize(tokens::Array{String}, alphabet::Array{Char}, mutations::Arra
     # combine all vectors into xs and convert xs to Float32 to speed up computation
     xs = Float32.(vcat(us, vs, cs))
     if (training)
+        ys = onehotbatch(y, options[:labels])
         return (Float32.(xs), Float32.(ys))
     else
-        ys = onehotbatch(y, options[:labels])
         return Float32.(xs)
     end
 end
