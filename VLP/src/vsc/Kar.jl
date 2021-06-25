@@ -1,6 +1,8 @@
 # phuonglh@gmail.com
 # Semi-character GRU for VSC
 
+module Kar
+
 using Flux
 using Flux: @epochs, onehotbatch, throttle, crossentropy, reset!, onecold
 using BSON: @save, @load
@@ -240,3 +242,4 @@ function eval(options)
     evaluate(model, sentences, alphabet, mutations)
 end
 
+end # module
