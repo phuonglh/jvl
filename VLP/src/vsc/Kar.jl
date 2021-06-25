@@ -29,16 +29,18 @@ end
   
 
 """
-  vectorize(tokens, alphabet, mutations)
+  vectorize(tokens, alphabet, mutations, training=true)
 
   Transforms a sentence into an array of vectors based on an alphabet and 
-  a label set. Return a pair of matrix (x, y) in the training mode or a single input matrix x in the test mode, where
-  x and y are matrices of size `(3*|alphabet|) x length(x)`, where length(x) is the number of tokens of the sentence.
+  a label set for training. Return a pair of matrix `(x, y)` where
+  `x` and `y` are matrices of size `(3*|alphabet|) x length(x)`, where length(x) is the number of tokens of the sentence.
 """
-function vectorize(tokens::Array{String}, alphabet::Array{Char}, mutations::Array{Symbol})
-    # Compute bag-of-character vectors for middle characters of a token, that is token[2:end-1].
+function vectorize(tokens::Array{String}, alphabet::Array{Char}, mutations::Array{Symbol}, training::Bool=true)
+    # Compute a bag-of-character vector for middle characters of a token, that is token[2:end-1].
     function boc(token::String, alphabet::Array{Char})
-        a = onehotbatch(collect(token[nextind(token, 1):prevind(token, lastindex(token))]), alphabet)
+        u, v = nextind(token, 1), prevind(token, lastindex(token))
+        subtoken = token[u:v]
+        a = onehotbatch(collect(subtoken), alphabet)
         sum(a, dims=2)
     end
     # truncate or padding input sequences to have the same maxSequenceLength
@@ -47,7 +49,7 @@ function vectorize(tokens::Array{String}, alphabet::Array{Char}, mutations::Arra
         (tokens[1:n], mutations[1:n])
     else
         for t=1:(n-length(tokens))
-            push!(tokens, "abc")
+            push!(tokens, "[PAD]")
             push!(mutations, :P)
         end
         (tokens, mutations)
@@ -65,29 +67,39 @@ function vectorize(tokens::Array{String}, alphabet::Array{Char}, mutations::Arra
     end
     # combine all vectors into xs and convert xs to Float32 to speed up computation
     xs = Float32.(vcat(us, vs, cs))
-    # prepare one-hot vectors for labels
-    ys = onehotbatch(y, options[:labels])
-    return (Float32.(xs), Float32.(ys))
+    if (training)
+        return (Float32.(xs), Float32.(ys))
+    else
+        ys = onehotbatch(y, options[:labels])
+        return Float32.(xs)
+    end
 end
 
 """
-    batch(sentences, alphabet, mutations)
+    batch(sentences, alphabet, mutations, training::Bool=true)
 
     Create batches of data for training.
 """
-function batch(sentences::Array{Array{String,1}}, alphabet::Array{Char,1}, mutations::Array{Array{Symbol,1}})
-    pairs = [vectorize(sentences[i], alphabet, mutations[i]) for i=1:length(sentences)]
-    Xs = map(p -> p[1], pairs)
-    Ys = map(p -> p[2], pairs)
-    Xb = collect(Iterators.partition(Xs, options[:batchSize]))
-    Yb = collect(Iterators.partition(Ys, options[:batchSize]))
-    return (Xb, Yb)
+function batch(sentences::Array{Array{String,1}}, alphabet::Array{Char,1}, mutations::Array{Array{Symbol,1}}, training::Bool=true)
+    if (training)
+        pairs = [vectorize(sentences[i], alphabet, mutations[i]) for i=1:length(sentences)]
+        Xs = map(p -> p[1], pairs)
+        Xb = collect(Iterators.partition(Xs, options[:batchSize]))
+        Ys = map(p -> p[2], pairs)
+        Yb = collect(Iterators.partition(Ys, options[:batchSize]))
+        return (Xb, Yb)
+    else
+        xs = [vectorize(sentences[i], alphabet, mutations[i]) for i=1:length(sentences)]
+        Xs = map(p -> p[1], xs)
+        Xb = collect(Iterators.partition(Xs, options[:batchSize]))
+        return Xb
+    end
 end
 
 """
-  predict(model, sentence, alphabet)
+    predict(model, sentence, alphabet)
 
-  Predict a mutated sentence.
+    Predict a mutated sentence.
 """
 function predict(model, sentence::Array{String}, alphabet::Array{Char})::Array{Symbol}
     # reset the state of the model before applying on an input sample
@@ -99,10 +111,10 @@ function predict(model, sentence::Array{String}, alphabet::Array{Char})::Array{S
 end
 
 """
-  evaluate(model, xs, ys)
+    evaluate(model, xs, ys)
 
-  Predict a list of sentences, collect prediction result and report prediction accuracy
-  xs: mutated sentences; ys: correct mutation labels
+    Predict a list of sentences, collect prediction result and report prediction accuracy
+    xs: mutated sentences; ys: correct mutation labels
 """
 function evaluate(model, xs::Array{Array{String,1}}, alphabet::Array{Char}, ys::Array{Array{Symbol,1}})
     zs = map(s -> predict(model, s, alphabet), xs)
@@ -135,7 +147,7 @@ end
     evaluate(model, xs, ys)
 
     Evaluates the accuracy of a mini-batch, return the total labels in the batch and the number of correct predicted labels.
-    This function is used in traiing for performance update.
+    This function is used in training for performance update.
 """
 function evaluate(model, xs::Array{Array{Float32,2}}, ys::Array{Array{Float32,2}})::Tuple{Int,Int}
     as = map(x -> onecold(model(x)), xs)
