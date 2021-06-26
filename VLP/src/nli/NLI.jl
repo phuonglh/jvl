@@ -25,8 +25,10 @@ options = Dict{Symbol,Any}(
     :gpu => false
 )
 
-# load a pre-trained BERT model for English
+# load a pre-trained BERT model for English (see ~/.julia/datadeps/)
 bert_model, wordpiece, tokenizer = pretrain"bert-uncased_L-12_H-768_A-12"
+# load mBERT (see ~/.julia/datadeps/)
+# bert_model, wordpiece, tokenizer = pretrain"bert-multi_cased_L-12_H-768_A-12"
 vocab = Vocabulary(wordpiece)
 
 # read train/dev./test datasets
@@ -72,6 +74,7 @@ function batch(df, training::Bool=true)
     end
 end
 
+# define a neural network of two layers for classification
 model = Chain(Dense(768, options[:hiddenSize]), Dense(options[:hiddenSize], 3))
 
 function train(model)
@@ -148,6 +151,17 @@ function evaluate(model, Xb, Yb, options)
     end
     @info "Total matches = $(numMatches)/$(numSents)"
     return 100 * (numMatches/numSents)
+end
+
+"""
+    evaluate(model, df, options)
+
+    Evaluates the accuracy of the classifier on a data frame.
+"""
+function evaluate(model, df, options)
+    @info "Extracting BERT representations of the training samples..."
+    @time Xb, Yb = batch(df)
+    evaluate(model, Xb, Yb, options)
 end
 
 end # module
