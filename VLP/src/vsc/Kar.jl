@@ -35,7 +35,7 @@ end
 
   Transforms a sentence into an array of vectors based on an alphabet and 
   a label set for training. Return a pair of matrix `(x, y)` where
-  `x` and `y` are matrices of size `(3*|alphabet|) x length(x)`, where length(x) is the number of tokens of the sentence.
+  `x` is a matrix of size `(3*|alphabet|) x n`, where `n` is the number of tokens of the input sentence.
 """
 function vectorize(tokens::Array{String}, alphabet::Array{Char}, mutations::Array{Symbol}, training::Bool=true)
     # Compute a bag-of-character vector for middle characters of a token, that is token[2:end-1].
@@ -49,7 +49,7 @@ function vectorize(tokens::Array{String}, alphabet::Array{Char}, mutations::Arra
             return zeros(length(alphabet))
         end
     end
-    # truncate or padding input sequences to have the same maxSequenceLength
+    # truncate or pad input sequences to have the same maxSequenceLength
     n = options[:maxSequenceLength]
     (x, y) = if length(tokens) >= n
         (tokens[1:n], mutations[1:n])
@@ -132,12 +132,12 @@ function evaluate(model, xs::Array{Array{String,1}}, alphabet::Array{Char}, ys::
         y, z = ys[i], zs[i]
         zyDiff = (z .== y)
         for i = 1:length(y)
-        k = y[i]
-        if (zyDiff[i])
-            oui[k] = oui[k] + 1
-        else 
-            non[k] = non[k] + 1
-        end
+            k = y[i]
+            if (zyDiff[i])
+                oui[k] = oui[k] + 1
+            else 
+                non[k] = non[k] + 1
+            end
         end
     end
     accuracy = Dict{Symbol,Float64}()
