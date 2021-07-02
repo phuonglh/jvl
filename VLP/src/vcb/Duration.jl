@@ -69,13 +69,69 @@ function convexity(N::Float64, yields::Array{Float64}, n::Int, rate::Float64)
     return (p, Δp/p)
 end
 
-function convexityHedging()
-    y = [6., 5.8, 5.62, 5.46]
+# duration hedging
+function Q6()
+    y = [6., 5.8, 5.62, 5.46, 5.33]
     c = [6., 8, 106, 7, 9]
     p, D = duration(y, c)
-    p1, D1 = duration(100., y, 2, 4.)
     p2, D2 = duration(100., y, 4, 10.)
+    return -D*p/(D2*p2)
+end
+
+# relative price change of the duration hedged portfolio
+function Q7()
+    y = [6., 5.8, 5.62, 5.46, 5.33]
+    c = [6., 8, 106, 7, 9]
+    p, D = duration(y, c)
+    p2, D2 = duration(100., y, 4, 10.)
+    q = -D*p/(D2*p2)
+    # the price of the duration hedged portfolio is 
+    U = p + q*p2
+    # now the yield curve moves up by 2%, we need to compute the new price 
+    y = y .+ 2
+    pNew, _ = duration(y, c)
+    p2New, _ = duration(100., y, 4, 10.)
+    V = pNew + q*p2New
+    Δ = (V-U)/U
+    return (U, V, Δ)
+end
+
+# convexity hedging
+function Q8()
+    y = [6., 5.8, 5.62, 5.46, 5.33]
+    c = [6., 8, 106, 7, 9]
+    p, D = duration(y, c)
+    C = convexity(y, c)[2]
+    p1, D1 = duration(100., y, 2, 4.)
+    C1 = convexity(100., y, 2, 4.)[2]
+    p2, D2 = duration(100., y, 4, 10.)
+    C2 = convexity(100., y, 4, 10.)[2]
     A = inv([-D1*p1 -D2*p2; C1*p1 C2*p2])
     B = [D*p; -C*p]
     A*B
+end
+
+# relative price change of the convexity hedged portfolio
+function Q9()
+    y = [6., 5.8, 5.62, 5.46, 5.33]
+    c = [6., 8, 106, 7, 9]
+    p, D = duration(y, c)
+    C = convexity(y, c)[2]
+    p1, D1 = duration(100., y, 2, 4.)
+    C1 = convexity(100., y, 2, 4.)[2]
+    p2, D2 = duration(100., y, 4, 10.)
+    C2 = convexity(100., y, 4, 10.)[2]
+    A = inv([-D1*p1 -D2*p2; C1*p1 C2*p2])
+    B = [D*p; -C*p]
+    q = A*B
+    # the price of the convexity hedged portfolio is
+    U = p + q'*[p1, p2]
+    # now the yield curve moves up by 2%, we need to compute the new price 
+    y = y .+ 2
+    pNew, _ = duration(y, c)
+    p1New, _ = duration(100., y, 2, 4.)
+    p2New, _ = duration(100., y, 4, 10.)
+    V = pNew + q'*[p1New, p2New]
+    Δ = (V-U)/U
+    return (U, V, Δ)
 end
