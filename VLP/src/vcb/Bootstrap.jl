@@ -1,5 +1,7 @@
 # Interest Rate Models
 # July 2021
+# Estimating Term Structure
+# Graded quiz: Q1 
 
 using Dates
 
@@ -26,11 +28,11 @@ rates = [
 ]
 
 prices = zeros(length(rates))
-prices[1] = 0.999975223 # 10/3/2013
-prices[2] = 0.990414339 # 10/3/2014
+prices[1] = 0.997528314 # 10/3/2013
+prices[2] = 0.990426067 # 10/3/2014
 
 for n=4:length(prices)+1
-    p = 0.
+    p = 0
     for i=2:n-1
         δ = Dates.value(dates[i] - dates[i-1])/360
         p = p + δ*prices[i-1]
@@ -39,6 +41,11 @@ for n=4:length(prices)+1
     d = Dates.value(dates[n] - dates[n-1])/360
     prices[n-1] = (1-r*p)/(1 + r*d)
 end
-prices
+# prices
 
+u, v = prices[end-1], prices[end]
+δ = Dates.value(dates[end] - dates[end-1])/360
+F = (1/δ)*(u/v - 1)*100
+@info prices
+@info string("F = ", F) # F = 2.5437853947815148
  
