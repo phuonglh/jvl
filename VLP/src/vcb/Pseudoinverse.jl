@@ -8,7 +8,30 @@ t0 = Date(2012, 10, 1)
 
 LIBORs = [(0.15, Date(2012, 10, 2)), (0.21, Date(2012, 11, 5)), (0.36, Date(2013, 1, 3))]
 futures = [(99.68, Date(2013, 3, 20)), (99.67, Date(2013, 6, 19)), (99.65, Date(2013, 9, 18)), (99.64, Date(2013, 12, 18)), (99.62, Date(2014, 3, 19))]
-swaps = [(0.36, Date(2014, 10, 3)), (0.43, Date(2015, 10, 5)), (0.56, Date(2016, 10, 3)), (0.75, Date(2017, 10, 3)), (1.17, Date(2019, 10, 3)), (1.68, Date(2022, 10, 3)), (2.19, Date(2027, 10, 4)), (2.40, Date(2032, 10, 4)), (2.58, Date(2042, 10, 3))]
+swaps = [(0.36, Date(2014, 10, 3)), (0.43, Date(2015, 10, 5)), (0.56, Date(2016, 10, 3)), (0.75, Date(2017, 10, 3)), 
+    (1.17, Date(2019, 10, 3)), (1.68, Date(2022, 10, 3)), (2.19, Date(2027, 10, 4)), (2.40, Date(2032, 10, 4)), (2.58, Date(2042, 10, 3))]
+
+
+# create a map month/year to date: this is necessary to create time legs for futures
+month2Date = Dict{Tuple{Year, Month}, Date}()
+month2Date[(Dates.Year(2012), Dates.Month(12))] = Date(2012, 12, 19)
+month2Date[(Dates.Year(2013), Dates.Month(3))] = Date(2013, 3, 20)
+month2Date[(Dates.Year(2013), Dates.Month(6))] = Date(2013, 6, 19)
+month2Date[(Dates.Year(2013), Dates.Month(9))] = Date(2013, 9, 18)
+month2Date[(Dates.Year(2013), Dates.Month(12))] = Date(2013, 12, 18)
+month2Date[(Dates.Year(2014), Dates.Month(3))] = Date(2014, 3, 19)
+
+# create a map to map a year to a date: this is necessary to create time legs for swap contracts
+year2Date = Dict{Year, Date}(Dates.Year(p[2]) => p[2] for p in swaps)
+year2Date[Dates.Year(2018)] = Date(2018, 10, 3)
+year2Date[Dates.Year(2020)] = Date(2020, 10, 3)
+year2Date[Dates.Year(2021)] = Date(2021, 10, 3)
+for y=2023:2026
+    year2Date[Dates.Year(y)] = Date(y, 10, 3)
+end
+for y=2028:2041
+    year2Date[Dates.Year(y)] = Date(y, 10, 4)
+end
 
 struct Instrument
     kind
@@ -23,23 +46,26 @@ function cashLIBOR(rate, T)
     return flow
 end
 
-function cashFutures(price, T1, T2)
+function cashFutures(price, Tn)
     flow = Array{Tuple{Date,Float64},1}()
     rate = 1 - price/100
-    if (T1 >= t0)
-        push!(flow, (T1, -1))
-    end
-    if (T2 >= t0)
-        push!(flow, (T2, 1 + Dates.value(T2 - t0)/360*rate))
-    end
+    date1 = Tn-Dates.Month(3) # futures are defined in quarter
+    (y1, m1) = (Dates.Year(date1), Dates.Month(date1))
+    date1 = get(month2Date, (y1, m1), date1)
+    push!(flow, (date1, -1))
+    (y2, m2) = (Dates.Year(Tn), Dates.Month(Tn))
+    date2 = get(month2Date, (y2, m2), Tn)
+    push!(flow, (date2, 1 + Dates.value(date2 - t0)/360*rate))
     return flow
 end
 
-function cashSwap(rate, T0, Tn)
+function cashSwap(rate, Tn)
     flow = Array{Tuple{Date,Float64},1}()
-    range = collect(T0:Dates.Year(1):Tn+Dates.Year(1))
-    for j=1:length(range)-1
-        push!(flow, (range[j], Dates.value(range[j+1] - range[j])/360*rate/100))
+    range = collect(t0+Dates.Year(1):Dates.Year(1):Tn)
+    for j=1:length(range)
+        y = Dates.Year(range[j])
+        date = get(year2Date, y, range[j])
+        push!(flow, (date, Dates.value(date - t0)/360*rate/100))
     end
     return flow
 end
@@ -54,22 +80,42 @@ end
 # futures
 futureDates = map(d -> d[2], futures)
 for d in futures
-    flow = cashFutures(d[1], d[2] - Dates.Year(1) + Dates.Day(1), d[2])
+    flow = cashFutures(d[1], d[2])
     push!(elements, Instrument(:f, d[1], d[2], flow))
 end
 
+
 # swaps
-# swapDates = map(d -> d[2], swaps)
-# Tn = swapDates[end]
-# for d in swaps
-#     flow = cashSwap(d[1], d[2], Tn)
-#     push!(elements, Instrument(:s, d[1], d[2], flow))
-# end
+swapDates = map(d -> d[2], swaps)
+for d in swaps
+    flow = cashSwap(d[1], d[2])
+    push!(elements, Instrument(:s, d[1], d[2], flow))
+end
+
 
 function getDates(instrument)
     map(pair -> pair[1], instrument.cash)
 end
 
 # time marks (columns of the cash flow matrix C)
+# this includes only LIBORs and futures time legs
 dates = Iterators.flatten(map(instrument -> getDates(instrument), elements))
+dates = sort(unique(collect(dates)))
 
+# buid a map from dates to column index
+dateIndex = Dict{Date,Int}(date => i for (i,date) in enumerate(dates))
+# numCols
+N = length(dates)
+
+"""
+    makeRow(instrument)
+"""
+function makeRow(instrument)
+    v = zeros(N)
+    for pair in instrument.cash
+        v[dateIndex[pair[1]]] = pair[2]
+    end
+    return v
+end
+
+rows = map(instrument -> makeRow(instrument), elements)
