@@ -3,6 +3,7 @@
 # phuonglh, July 2021
 
 using Dates
+using LinearAlgebra
 
 t0 = Date(2012, 10, 1)
 
@@ -119,3 +120,24 @@ function makeRow(instrument)
 end
 
 rows = map(instrument -> makeRow(instrument), elements)
+C = hcat(rows...)'
+
+# market price vector p
+p = Array{Float64,1}()
+push!(p, map(x -> x[1]/100, LIBORs)...)
+push!(p, map(x -> 1-x[1]/100, futures)...)
+push!(p, map(x -> x[1]/100, swaps)...)
+
+# construct matrices
+δ = zeros(N)
+δ[1] = 1/sqrt(Dates.value(dates[1] - t0)/360)
+for t=1:N-1
+    δ[t+1] = 1/sqrt(Dates.value(dates[t+1] - dates[t])/360)
+end
+W = Diagonal(δ)
+M = Bidiagonal(ones(N), zeros(N-1) .- 1, :L)
+
+# compute Δ*
+a = zeros(N); a[1] = 1
+A = C*inv(M)*inv(W)
+Δ = A'*inv(A*A')*(p - C*inv(M)*a)
