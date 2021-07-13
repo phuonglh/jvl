@@ -62,12 +62,17 @@ end
 
 function cashSwap(rate, Tn)
     flow = Array{Tuple{Date,Float64},1}()
-    range = collect(t0+Dates.Year(1):Dates.Year(1):Tn)
-    for j=1:length(range)
-        y = Dates.Year(range[j])
-        date = get(year2Date, y, range[j])
-        push!(flow, (date, Dates.value(date - t0)/360*rate/100))
+    range = collect(t0:Dates.Year(1):Tn)
+    for j=1:length(range)-1
+        y1 = Dates.Year(range[j])
+        y2 = Dates.Year(range[j+1])
+        date1 = get(year2Date, y1, range[j])
+        date2 = get(year2Date, y2, range[j+1])
+        push!(flow, (date2, Dates.value(date2 - date1)/360*rate/100))
     end
+    # at the maturity, we need to add 1 to the cash value
+    flow[end] = (flow[end][1], 1 + flow[end][2])
+    @info flow[end]
     return flow
 end
 
@@ -124,9 +129,9 @@ C = hcat(rows...)'
 
 # market price vector p
 p = Array{Float64,1}()
-push!(p, map(x -> x[1]/100, LIBORs)...)
-push!(p, map(x -> 1-x[1]/100, futures)...)
-push!(p, map(x -> x[1]/100, swaps)...)
+push!(p, map(x -> 1., LIBORs)...)
+push!(p, map(x -> 0., futures)...)
+push!(p, map(x -> 1., swaps)...)
 
 # construct matrices
 δ = zeros(N)
@@ -137,7 +142,16 @@ end
 W = Diagonal(δ)
 M = Bidiagonal(ones(N), zeros(N-1) .- 1, :L)
 
-# compute Δ*
-a = zeros(N); a[1] = 1
+# compute the best Δ*
+a = zeros(N); a[1] = 1.
 A = C*inv(M)*inv(W)
 Δ = A'*inv(A*A')*(p - C*inv(M)*a)
+
+# infer price vector d from Δ
+prices = zeros(N)
+p0 = 1.0
+for i=1:N
+    prices[i] = p0 + Δ[i]/δ[i]
+    p0 = prices[i]
+end
+prices
