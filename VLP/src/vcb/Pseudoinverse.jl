@@ -1,26 +1,30 @@
-# Interest Rate Models, w3
-# Pseudoinverse method
-# phuonglh, July 2021
+# Interest Rate Models, w3.
+# Programming the pseudoinverse method
+# phuonglh@gmail.com, July 2021
 
 using Dates
 using LinearAlgebra
 
-t0 = Date(2012, 10, 1)
+# Example in the slides of the week
+# t0 = Date(2012, 10, 1)
+# LIBORs = [(0.15, Date(2012, 10, 2)), (0.21, Date(2012, 11, 5)), (0.36, Date(2013, 1, 3))]
+# futures = [(99.68, Date(2013, 3, 20)), (99.67, Date(2013, 6, 19)), (99.65, Date(2013, 9, 18)), (99.64, Date(2013, 12, 18)), (99.62, Date(2014, 3, 19))]
+# swaps = [(0.36, Date(2014, 10, 3)), (0.43, Date(2015, 10, 5)), (0.56, Date(2016, 10, 3)), (0.75, Date(2017, 10, 3)), 
+#     (1.17, Date(2019, 10, 3)), (1.68, Date(2022, 10, 3)), (2.19, Date(2027, 10, 4)), (2.40, Date(2032, 10, 4)), (2.58, Date(2042, 10, 3))]
 
-LIBORs = [(0.15, Date(2012, 10, 2)), (0.21, Date(2012, 11, 5)), (0.36, Date(2013, 1, 3))]
-futures = [(99.68, Date(2013, 3, 20)), (99.67, Date(2013, 6, 19)), (99.65, Date(2013, 9, 18)), (99.64, Date(2013, 12, 18)), (99.62, Date(2014, 3, 19))]
-swaps = [(0.36, Date(2014, 10, 3)), (0.43, Date(2015, 10, 5)), (0.56, Date(2016, 10, 3)), (0.75, Date(2017, 10, 3)), 
-    (1.17, Date(2019, 10, 3)), (1.68, Date(2022, 10, 3)), (2.19, Date(2027, 10, 4)), (2.40, Date(2032, 10, 4)), (2.58, Date(2042, 10, 3))]
-
+# Graded exercises of the week
+t0 = Date(2012, 10, 3)
+LIBORs = [(0.095, Date(2012, 10, 4)), (0.116, Date(2012, 11, 5)), (0.223, Date(2013, 1, 3)), (0.438, Date(2013, 4, 3))]
+futures = [(99.786, Date(2013, 6, 19)), (99.752, Date(2013, 9, 18)), (99.723, Date(2013, 12, 18)), (99.669, Date(2014, 3, 19))]
+swaps = [(0.475, Date(2014, 10, 3)), (0.586, Date(2015, 10, 5)), (0.752, Date(2016, 10, 3)), (0.942, Date(2017, 10, 3)), 
+    (1.324, Date(2019, 10, 3)), (1.739, Date(2022, 10, 3)), (2.165, Date(2027, 10, 4)), (2.280, Date(2032, 10, 4)), (2.332, Date(2042, 10, 3))]
 
 # create a map month/year to date: this is necessary to create time legs for futures
 month2Date = Dict{Tuple{Year, Month}, Date}()
-month2Date[(Dates.Year(2012), Dates.Month(12))] = Date(2012, 12, 19)
-month2Date[(Dates.Year(2013), Dates.Month(3))] = Date(2013, 3, 20)
-month2Date[(Dates.Year(2013), Dates.Month(6))] = Date(2013, 6, 19)
-month2Date[(Dates.Year(2013), Dates.Month(9))] = Date(2013, 9, 18)
-month2Date[(Dates.Year(2013), Dates.Month(12))] = Date(2013, 12, 18)
-month2Date[(Dates.Year(2014), Dates.Month(3))] = Date(2014, 3, 19)
+for pair in futures
+    date = pair[2]
+    month2Date[(Dates.Year(date), Dates.Month(date))] = date
+end
 
 # create a map to map a year to a date: this is necessary to create time legs for swap contracts
 year2Date = Dict{Year, Date}(Dates.Year(p[2]) => p[2] for p in swaps)
@@ -148,10 +152,23 @@ A = C*inv(M)*inv(W)
 Δ = A'*inv(A*A')*(p - C*inv(M)*a)
 
 # infer price vector d from Δ
-prices = zeros(N)
-p0 = 1.0
-for i=1:N
-    prices[i] = p0 + Δ[i]/δ[i]
-    p0 = prices[i]
+function pricing(Δ, δ)
+    prices = zeros(N)
+    p0 = 1.0
+    for i=1:N
+        prices[i] = p0 + Δ[i]/δ[i]
+        p0 = prices[i]
+    end
+    return prices
 end
-prices
+
+prices = pricing(Δ, δ)
+
+# compute the forward swap rate for the last time leg
+u, v = prices[end-1], prices[end] # 
+
+# (Date("2041-10-04"), 0.49599176728941763)
+# (Date("2042-10-03"), 0.4836152926847319)
+
+F = (1/(Dates.value(dates[end]-dates[end-1])/360))*(u/v - 1)*100
+# F = 2.53103439 (%)
