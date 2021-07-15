@@ -165,12 +165,6 @@ Z = M + Y*θ'
 cf = [80, 70, 150, 40]
 
 # 4 maturities T_i = [2, 3, 4, 5], so we take the first 4 columns of Z of Δy_i
-U = -exp.(-Yield[1:m-1, 1:4] ./ 12) .* repeat(cf', m-1, 1) ./ 12
-M4 = M[:,1:4]
-X4 = X[:,1:4]
-θ4 = θ[1:4, :]
-Y4 = (X4 - M4)*θ4
-Z4 = M4 + Y4*θ4' 
-
-W = -sum(U .* Z4, dims=2)
+U = -exp.(-repeat(Yield[end, 1:4]', m-1, 1) ./ 12) .* repeat(cf', m-1, 1) ./ 12
+W = sum(U .* Z[:,1:4], dims=2)
 σ = std(W) 
