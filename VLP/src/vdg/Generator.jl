@@ -3,6 +3,7 @@
 
 module VDG
 
+using Base.Iterators: push!
 using Base.Iterators: isempty
 using FLoops: Iterators
 using CSV
@@ -12,7 +13,7 @@ using Flux: @epochs
 using BSON: @save, @load
 
 using FLoops
-
+using Random
 
 include("DiacriticsRemoval.jl")
 
@@ -23,12 +24,13 @@ options = Dict{Symbol,Any}(
     :alphabetPath => string(pwd(), "/dat/vdg/alphabet.txt"),
     :modelPath => string(pwd(), "/dat/vdg/vdg.bson"),
     :maxSequenceLength => 64,
-    :batchSize => 16,
+    :batchSize => 32,
     :numEpochs => 10,
     :unkChar => 'X',
     :padChar => 'P',
     :gpu => false,
-    :hiddenSize => 64
+    :hiddenSize => 64,
+    :split => [0.8, 0.2]
 )
 
 """
@@ -125,8 +127,7 @@ function train(options)
     Ys = collect(Iterators.flatten(map(xy -> xy[2], XYs)))
     # batch inp/out sequences
     Xbs = collect(Iterators.partition(Xs, options[:batchSize]))
-    Ybs = collect(Iterators.partition(Ys, options[:batchSize]))
-
+    Ybs = collect(Iterators.partition(Ys, options[:batchSize]))    
     if options[:gpu] 
         @info "Bringing data to GPU..."
         Xbs = map(t -> gpu.(t), Xbs)
@@ -136,6 +137,15 @@ function train(options)
     @info "#(batches) = $(length(dataset))"
     @info "typeof(X1) = $(typeof(Xbs[1]))" 
     @info "typeof(Y1) = $(typeof(Ybs[1]))" 
+    # split training/test parts
+    Random.seed!(220712)
+    n = length(Xbs)
+    is = shuffle(1:n)
+    dataset = dataset[is]
+    j = Int(round(n*options[:split][2]))
+    dataset_test = dataset[1:j]       # test part
+    dataset_train = dataset[j+1:end]  # training part
+
     # define a model
     model = Chain(
         GRU(length(alphabet), options[:hiddenSize]), 
@@ -151,20 +161,30 @@ function train(options)
     end
     optimizer = ADAM()
     
+    accuracy_test, accuracy_train = Array{Float64,1}(), Array{Float64,1}()
+    Js = Array{Float64,1}()
     function evalcb() 
-        a = evaluate(model, Xbs[1], Ybs[1])
-        @info "loss(Xb[1]) = $(loss(dataset[1]...)), accuracy(Xb[1]) = $a"
+        J = sum(loss(dataset_train[i]...) for i=1:length(dataset_train))
+        push!(Js, J)
+        pairs_test = [evaluate(model, dataset_test[i]...) for i=1:length(dataset_test)]
+        u, v = reduce(((a, b), (c, d)) -> (a + c, b + d), pairs_test)
+        push!(accuracy_test, v/u)
+        pairs_train = [evaluate(model, dataset_train[i]...) for i=1:length(dataset_train)]
+        u, v = reduce(((a, b), (c, d)) -> (a + c, b + d), pairs_train)
+        push!(accuracy_train, v/u)
+        @info "loss = $J, accuracy_test = $(accuracy_test[end]), accuracy_train = $(accuracy_train[end])"
     end
-    @epochs options[:numEpochs] Flux.train!(loss, params(model), dataset, optimizer, cb = Flux.throttle(evalcb, 60))
+    @elapsed @epochs options[:numEpochs] Flux.train!(loss, params(model), dataset_train, optimizer, cb = Flux.throttle(evalcb, 60))
     if (options[:gpu])
         model = model |> cpu
     end
     @save options[:modelPath] model
-    # evaluate the training accuracy of the model
-    pairs = [evaluate(model, collect(Xbs[i]), collect(Ybs[i])) for i=1:length(Xbs)]
-    result = reduce(((a, b), (c, d)) -> (a + c, b + d), pairs)
-    @info "training accuracy = $(result[2]/result[1]) [$(result[2])/$(result[1])]."
-    return model    
+    # using Plots
+    # plot(1:length(Js), accuracy_test, accuracy_train, xlabel="iteration", ylabel="accuracy", label=["test", "train"])
+    return model
+end
+
+function predict(text::String, options)::String
 end
 
 end # module

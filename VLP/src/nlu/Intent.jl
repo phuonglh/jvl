@@ -129,6 +129,7 @@ function train(options)
     Random.seed!(220712)
     n = nrow(df)
     xs = shuffle(1:n)
+    df = df[xs,:]
     j = Int(round(n*options[:split][2]))
     dfV = df[1:j,:]    # test part
     dfU = df[j+1:n,:]  # training part
