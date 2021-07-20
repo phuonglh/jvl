@@ -3,6 +3,7 @@
 
 module VDG
 
+using Base.Iterators: sort!
 using Base.Iterators: push!
 using Base.Iterators: isempty
 using FLoops: Iterators
@@ -16,7 +17,7 @@ using FLoops
 using Random
 
 include("DiacriticsRemoval.jl")
-
+include("Utils.jl")
 
 options = Dict{Symbol,Any}(
     :dataPath => string(pwd(), "/dat/qas/monre.csv"),
@@ -91,24 +92,10 @@ function evaluate(model, Xb, Yb)::Tuple{Int,Int}
     return (total, correct)
 end
 
-"""
-    saveIndex(index, path)
-    
-    Save an index to an external file.
-"""
-function saveIndex(index, path)
-    file = open(path, "w")
-    for f in keys(index)
-        write(file, string(f, " ", index[f]), "\n")
-    end
-    close(file)
-end
-
 function train(options)
     # read input data frame and create inp/out sequences
     df = CSV.File(options[:dataPath]) |> DataFrame
     ys = map(y -> lowercase(y), df[:, :question])
-    xs = map(y -> removeDiacritics(y), ys)
     # create and save alphabet index
     alphabetY = unique(join(ys))
     alphabet = unique(join(alphabetY, values(charMap)))
@@ -122,7 +109,7 @@ function train(options)
     labelIndex = Dict{Char,Int}(c => i for (i, c) in enumerate(label))
     saveIndex(labelIndex, options[:labelPath])
     # create training sequences
-    XYs = map(x -> vectorize(x, alphabet, label), xs)
+    XYs = map(y -> vectorize(y, alphabet, label), ys)
     Xs = collect(Iterators.flatten(map(xy -> xy[1], XYs)))
     Ys = collect(Iterators.flatten(map(xy -> xy[2], XYs)))
     # batch inp/out sequences
@@ -184,7 +171,15 @@ function train(options)
     return model
 end
 
-function predict(text::String, options)::String
+function predict(text::String, model, alphabet::Array{Char}, labelMap::Dict{Int,Char})::String
+    Xs = vectorize(text, alphabet)
+    zs = map(X -> Flux.onecold(model(X)), Xs)
+    cs = map(z -> join(map(i -> labelMap[i], z)), zs)
+    @info cs
+    texte = join(cs)
+    is = findall(c -> c == options[:unkChar], texte)
+    texte[is] .= text[is]
+    return texte
 end
 
 end # module
