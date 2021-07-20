@@ -26,7 +26,7 @@ options = Dict{Symbol,Any}(
     :modelPath => string(pwd(), "/dat/vdg/vdg.bson"),
     :maxSequenceLength => 64,
     :batchSize => 32,
-    :numEpochs => 10,
+    :numEpochs => 5,
     :unkChar => 'X',
     :padChar => 'P',
     :gpu => false,
@@ -56,7 +56,7 @@ function vectorize(text::String, alphabet::Array{Char}, label=Array{Char,1}())
     # convert them into one-hot matrices of size (|alphabet| x maxSeqLen)
     Xs = map(x -> Float32.(Flux.onehotbatch(x, alphabet)), xs)
     if (!isempty(label)) # training mode
-        texte = map(c -> c ∈ keys(charMap) ? c : options[:unkChar], text)
+        texte = map(c -> c ∈ keys(charMap) || c ∈ values(charMap) ? c : options[:unkChar], text)
         ys = collect(Iterators.partition(texte, n))
         ys[end] = vcat(ys[end], ps)
         Ys = map(y -> Float32.(Flux.onehotbatch(y, label)), ys)
@@ -102,12 +102,14 @@ function train(options)
     prepend!(alphabet, options[:padChar])
     charIndex = Dict{Char,Int}(c => i for (i, c) in enumerate(alphabet))
     saveIndex(charIndex, options[:alphabetPath])
+
     # create and save label index
-    label = collect(keys(charMap))
+    label = collect(union(keys(charMap), values(charMap)))
     prepend!(label, options[:unkChar])
     prepend!(label, options[:padChar])
     labelIndex = Dict{Char,Int}(c => i for (i, c) in enumerate(label))
     saveIndex(labelIndex, options[:labelPath])
+
     # create training sequences
     XYs = map(y -> vectorize(y, alphabet, label), ys)
     Xs = collect(Iterators.flatten(map(xy -> xy[1], XYs)))
@@ -161,7 +163,9 @@ function train(options)
         push!(accuracy_train, v/u)
         @info "loss = $J, accuracy_test = $(accuracy_test[end]), accuracy_train = $(accuracy_train[end])"
     end
-    @elapsed @epochs options[:numEpochs] Flux.train!(loss, params(model), dataset_train, optimizer, cb = Flux.throttle(evalcb, 60))
+    for t=1:options[:numEpochs]
+        @time Flux.train!(loss, params(model), dataset_train, optimizer, cb = Flux.throttle(evalcb, 60))
+    end
     if (options[:gpu])
         model = model |> cpu
     end
@@ -175,11 +179,11 @@ function predict(text::String, model, alphabet::Array{Char}, labelMap::Dict{Int,
     Xs = vectorize(text, alphabet)
     zs = map(X -> Flux.onecold(model(X)), Xs)
     cs = map(z -> join(map(i -> labelMap[i], z)), zs)
-    @info cs
-    texte = join(cs)
-    is = findall(c -> c == options[:unkChar], texte)
-    texte[is] .= text[is]
-    return texte
+    texte = join(cs)[1:length(text)]
+    is = findall(c -> c == options[:unkChar], collect(texte))
+    us = collect(texte)
+    us[is] .= collect(text)[is]
+    return join(us)
 end
 
 end # module
