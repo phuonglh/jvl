@@ -16,10 +16,14 @@ charMap = Dict{Char,Char}(
     'ỳ' => 'y', 'ý' => 'y', 'ỷ' => 'y', 'ỹ' => 'y', 'ỵ' => 'y',
     'đ' => 'd'
 )
+
+# add space char mapping
+charMap[' '] = ' '
+
 # add uppercase chars mapping
-for c in keys(charMap)
-    charMap[uppercase(c)] = uppercase(charMap[c])
-end
+# for c in keys(charMap)
+#     charMap[uppercase(c)] = uppercase(charMap[c])
+# end
 
 # remove diacritics of a text and return a non-accented text.
 function removeDiacritics(text::String)::String
