@@ -138,7 +138,7 @@ function train(options)
     # define a model
     model = Chain(
         GRU(length(alphabet), options[:hiddenSize]), 
-        Dense(options[:hiddenSize], length(label))
+        Dense(options[:hiddenSize], length(label), relu)
     )
     @info model
     # compute the loss of the model on a batch
@@ -179,11 +179,10 @@ function predict(text::String, model, alphabet::Array{Char}, labelMap::Dict{Int,
     Xs = vectorize(text, alphabet)
     zs = map(X -> Flux.onecold(model(X)), Xs)
     cs = map(z -> join(map(i -> labelMap[i], z)), zs)
-    texte = join(cs)[1:length(text)]
-    is = findall(c -> c == options[:unkChar], collect(texte))
-    us = collect(texte)
-    us[is] .= collect(text)[is]
-    return join(us)
+    texte = collect(join(cs))[1:length(text)]
+    is = findall(c -> c == options[:unkChar], texte)
+    texte[is] .= collect(text)[is]
+    return join(texte)
 end
 
 end # module
