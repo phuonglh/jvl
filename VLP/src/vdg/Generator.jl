@@ -7,8 +7,6 @@ using Base.Iterators: sort!
 using Base.Iterators: push!
 using Base.Iterators: isempty
 using FLoops: Iterators
-using CSV
-using DataFrames
 using Flux
 using Flux: @epochs
 using BSON: @save, @load
@@ -16,11 +14,16 @@ using BSON: @save, @load
 using FLoops
 using Random
 
+# using CSV
+# using DataFrames
+
 include("DiacriticsRemoval.jl")
 include("Utils.jl")
+include("BiRNN.jl")
 
 options = Dict{Symbol,Any}(
-    :dataPath => string(pwd(), "/dat/qas/monre.csv"),
+    :sampleSize => 5000,
+    :dataPath => string(pwd(), "/dat/vdg/vlsp.txt"),
     :labelPath => string(pwd(), "/dat/vdg/label.txt"),
     :alphabetPath => string(pwd(), "/dat/vdg/alphabet.txt"),
     :modelPath => string(pwd(), "/dat/vdg/vdg.bson"),
@@ -30,7 +33,7 @@ options = Dict{Symbol,Any}(
     :unkChar => 'X',
     :padChar => 'P',
     :gpu => false,
-    :hiddenSize => 64,
+    :hiddenSize => 128,
     :split => [0.8, 0.2]
 )
 
@@ -94,8 +97,11 @@ end
 
 function train(options)
     # read input data frame and create inp/out sequences
-    df = CSV.File(options[:dataPath]) |> DataFrame
-    ys = map(y -> lowercase(y), df[:, :question])
+    # df = CSV.File(options[:dataPath]) |> DataFrame
+    # ys = map(y -> lowercase(y), df[:, :question])
+    lines = readlines(options[:dataPath])
+    N = min(options[:sampleSize], length(lines))
+    ys = map(y -> lowercase(y), lines[1:N])
     # create and save alphabet index
     alphabetY = unique(join(ys))
     alphabet = unique(join(alphabetY, values(charMap)))
@@ -137,14 +143,21 @@ function train(options)
 
     # define a model
     model = Chain(
-        GRU(length(alphabet), options[:hiddenSize]), 
-        Dense(options[:hiddenSize], length(label), relu)
+        BiGRU(length(alphabet), options[:hiddenSize]), 
+        Dense(options[:hiddenSize], length(label))
     )
     @info model
     # compute the loss of the model on a batch
     function loss(Xb, Yb)
+        function g(X, Y)
+            ys = Flux.onecold(Y)
+            t = options[:maxSequenceLength]
+            while (ys[t] == 1) t = t - 1; end
+            Z = model(X)
+            return Flux.logitcrossentropy(Z[:,1:t], Y[:,t])
+        end
         batchSize = length(Xb)
-        value = sum(Flux.logitcrossentropy(model(Xb[i]), Yb[i]) for i=1:batchSize)
+        value = sum(g(Xb[i], Yb[i]) for i=1:batchSize)
         Flux.reset!(model)
         return value
     end
@@ -183,6 +196,26 @@ function predict(text::String, model, alphabet::Array{Char}, labelMap::Dict{Int,
     is = findall(c -> c == options[:unkChar], texte)
     texte[is] .= collect(text)[is]
     return join(texte)
+end
+
+function test(text, model)
+    alphabet = loadAlphabet(options[:alphabetPath])
+    label = loadAlphabet(options[:labelPath])
+    labelIndex = loadIndex(options[:labelPath])
+    labelMap = Dict{Int,Char}(i => c for (c,i) in labelIndex)
+    test(text, model, alphabet, label, labelMap)
+end
+
+function test(text, model, alphabet, label, labelMap)
+    Xs, Ys = vectorize(text, alphabet, label)
+    xs = Flux.onecold(Xs[1])
+    @info alphabet[xs]
+    ys = Flux.onecold(Ys[1])
+    vs = join(map(y -> labelMap[y], ys))
+    @info vs
+    zs = Flux.onecold(model(Xs[1]))
+    ws = join(map(y -> labelMap[y], zs))
+    @info ws
 end
 
 end # module
