@@ -22,7 +22,7 @@ include("Utils.jl")
 include("BiRNN.jl")
 
 options = Dict{Symbol,Any}(
-    :sampleSize => 5000,
+    :sampleSize => 8_000,
     :dataPath => string(pwd(), "/dat/vdg/vlsp.txt"),
     :labelPath => string(pwd(), "/dat/vdg/label.txt"),
     :alphabetPath => string(pwd(), "/dat/vdg/alphabet.txt"),
@@ -30,10 +30,10 @@ options = Dict{Symbol,Any}(
     :maxSequenceLength => 64,
     :batchSize => 32,
     :numEpochs => 5,
-    :unkChar => 'X',
+    :unkChar => 'S',
     :padChar => 'P',
     :gpu => false,
-    :hiddenSize => 128,
+    :hiddenSize => 64,
     :split => [0.8, 0.2]
 )
 
@@ -59,7 +59,7 @@ function vectorize(text::String, alphabet::Array{Char}, label=Array{Char,1}())
     # convert them into one-hot matrices of size (|alphabet| x maxSeqLen)
     Xs = map(x -> Float32.(Flux.onehotbatch(x, alphabet)), xs)
     if (!isempty(label)) # training mode
-        texte = map(c -> c ∈ keys(charMap) || c ∈ values(charMap) ? c : options[:unkChar], text)
+        texte = map(c -> c ∈ keys(charMap) ? c : options[:unkChar], text)
         ys = collect(Iterators.partition(texte, n))
         ys[end] = vcat(ys[end], ps)
         Ys = map(y -> Float32.(Flux.onehotbatch(y, label)), ys)
@@ -91,7 +91,6 @@ function evaluate(model, Xb, Yb)::Tuple{Int,Int}
         total = total + t
         correct = correct + sum(as[i][1:t] .== bs[i][1:t])
     end
-    Flux.reset!(model)
     return (total, correct)
 end
 
@@ -101,16 +100,17 @@ function train(options)
     # ys = map(y -> lowercase(y), df[:, :question])
     lines = readlines(options[:dataPath])
     N = min(options[:sampleSize], length(lines))
+    @info "N = $(N)"
     ys = map(y -> lowercase(y), lines[1:N])
     # create and save alphabet index
-    alphabetY = unique(join(ys))
-    alphabet = unique(join(alphabetY, values(charMap)))
+    alphabet = unique(join(ys))
+    @info "alphabet = $(join(alphabet))"
     prepend!(alphabet, options[:padChar])
     charIndex = Dict{Char,Int}(c => i for (i, c) in enumerate(alphabet))
     saveIndex(charIndex, options[:alphabetPath])
 
     # create and save label index
-    label = collect(union(keys(charMap), values(charMap)))
+    label = collect(keys(charMap))
     prepend!(label, options[:unkChar])
     prepend!(label, options[:padChar])
     labelIndex = Dict{Char,Int}(c => i for (i, c) in enumerate(label))
@@ -143,7 +143,7 @@ function train(options)
 
     # define a model
     model = Chain(
-        BiGRU(length(alphabet), options[:hiddenSize]), 
+        GRU(length(alphabet), options[:hiddenSize]),
         Dense(options[:hiddenSize], length(label))
     )
     @info model
