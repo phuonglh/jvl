@@ -22,7 +22,7 @@ include("Utils.jl")
 include("BiRNN.jl")
 
 options = Dict{Symbol,Any}(
-    :sampleSize => 8_000,
+    :sampleSize => 5_000,
     :dataPath => string(pwd(), "/dat/vdg/vlsp.txt"),
     :labelPath => string(pwd(), "/dat/vdg/label.txt"),
     :alphabetPath => string(pwd(), "/dat/vdg/alphabet.txt"),
@@ -34,7 +34,8 @@ options = Dict{Symbol,Any}(
     :padChar => 'P',
     :gpu => false,
     :hiddenSize => 64,
-    :split => [0.8, 0.2]
+    :split => [0.8, 0.2],
+    :η => 1E-4 # learning rate for Adam optimizer
 )
 
 """
@@ -55,7 +56,7 @@ function vectorize(text::String, alphabet::Array{Char}, label=Array{Char,1}())
     # pad the last subarray with the pad character
     ps = fill(options[:padChar], n - length(xs[end]))
     xs[end] = vcat(xs[end], ps)
-    # now all the subarrays in xs is of the same length, 
+    # now all the subarrays in xs are of the same length, 
     # convert them into one-hot matrices of size (|alphabet| x maxSeqLen)
     Xs = map(x -> Float32.(Flux.onehotbatch(x, alphabet)), xs)
     if (!isempty(label)) # training mode
@@ -75,14 +76,15 @@ end
     Evaluates the accuracy of a mini-batch, return the total labels in the batch and the number 
     of correctly predicted labels. This function is used in training for showing performance score.
 """
-function evaluate(model, Xb, Yb)::Tuple{Int,Int}
+function evaluate(model, Xb, Yb)::Tuple{Int,Int,Int}
     batchSize = length(Xb)
     as = map(X -> Flux.onecold(model(X)), Xb)
     bs = map(Y -> Flux.onecold(Y), Yb)
     # find the real length of target sequence (without padding symbol of index 1)
+    padding, same = 1, 2
     total = 0
     correct = 0
-    padding = 1
+    easy = 0
     for i = 1:batchSize
         t = options[:maxSequenceLength]
         while t > 0 && bs[i][t] == padding
@@ -90,8 +92,10 @@ function evaluate(model, Xb, Yb)::Tuple{Int,Int}
         end
         total = total + t
         correct = correct + sum(as[i][1:t] .== bs[i][1:t])
+        js = bs[i][1:t] .== same
+        easy = easy + sum(as[i][1:t][js] .== same)
     end
-    return (total, correct)
+    return (total, correct, total - easy)
 end
 
 function train(options)
@@ -104,8 +108,8 @@ function train(options)
     ys = map(y -> lowercase(y), lines[1:N])
     # create and save alphabet index
     alphabet = unique(join(ys))
-    @info "alphabet = $(join(alphabet))"
     prepend!(alphabet, options[:padChar])
+    @info "alphabet = $(join(alphabet))"
     charIndex = Dict{Char,Int}(c => i for (i, c) in enumerate(alphabet))
     saveIndex(charIndex, options[:alphabetPath])
 
@@ -113,6 +117,7 @@ function train(options)
     label = collect(keys(charMap))
     prepend!(label, options[:unkChar])
     prepend!(label, options[:padChar])
+    @info "label = $(join(label))"
     labelIndex = Dict{Char,Int}(c => i for (i, c) in enumerate(label))
     saveIndex(labelIndex, options[:labelPath])
 
@@ -144,6 +149,7 @@ function train(options)
     # define a model
     model = Chain(
         GRU(length(alphabet), options[:hiddenSize]),
+        Dropout(0.5),
         Dense(options[:hiddenSize], length(label))
     )
     @info model
@@ -156,12 +162,12 @@ function train(options)
             Z = model(X)
             return Flux.logitcrossentropy(Z[:,1:t], Y[:,t])
         end
+        Flux.reset!(model)
         batchSize = length(Xb)
         value = sum(g(Xb[i], Yb[i]) for i=1:batchSize)
-        Flux.reset!(model)
         return value
     end
-    optimizer = ADAM()
+    optimizer = ADAM(options[:η])
     
     accuracy_test, accuracy_train = Array{Float64,1}(), Array{Float64,1}()
     Js = Array{Float64,1}()
@@ -169,12 +175,13 @@ function train(options)
         J = sum(loss(dataset_train[i]...) for i=1:length(dataset_train))
         push!(Js, J)
         pairs_test = [evaluate(model, dataset_test[i]...) for i=1:length(dataset_test)]
-        u, v = reduce(((a, b), (c, d)) -> (a + c, b + d), pairs_test)
+        u, v, w = reduce(((a1, b1, c1), (a2, b2, c2)) -> (a1 + a2, b1 + b2, c1+c2), pairs_test)
         push!(accuracy_test, v/u)
         pairs_train = [evaluate(model, dataset_train[i]...) for i=1:length(dataset_train)]
-        u, v = reduce(((a, b), (c, d)) -> (a + c, b + d), pairs_train)
+        u, v, w = reduce(((a1, b1, c1), (a2, b2, c2)) -> (a1 + a2, b1 + b2, c1 + c2), pairs_train)
         push!(accuracy_train, v/u)
         @info "loss = $J, accuracy_test = $(accuracy_test[end]), accuracy_train = $(accuracy_train[end])"
+        @info "not easy char. accuracy (training) = $(w/u)"
     end
     for t=1:options[:numEpochs]
         @time Flux.train!(loss, params(model), dataset_train, optimizer, cb = Flux.throttle(evalcb, 60))
