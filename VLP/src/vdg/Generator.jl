@@ -3,6 +3,7 @@
 
 module VDG
 
+using Base: Bool
 using Base.Iterators: sort!
 using Base.Iterators: push!
 using Base.Iterators: isempty
@@ -23,31 +24,30 @@ include("BiRNN.jl")
 
 options = Dict{Symbol,Any}(
     :sampleSize => 5_000,
-    :dataPath => string(pwd(), "/dat/vdg/vlsp.txt"),
-    :labelPath => string(pwd(), "/dat/vdg/label.txt"),
+    :dataPath => string(pwd(), "/dat/vdg/010K.txt"),
     :alphabetPath => string(pwd(), "/dat/vdg/alphabet.txt"),
     :modelPath => string(pwd(), "/dat/vdg/vdg.bson"),
     :maxSequenceLength => 64,
     :batchSize => 32,
-    :numEpochs => 5,
+    :numEpochs => 20,
     :unkChar => 'S',
     :padChar => 'P',
     :gpu => false,
     :hiddenSize => 64,
     :split => [0.8, 0.2],
-    :η => 1E-4 # learning rate for Adam optimizer
+    :η => 1E-3 # learning rate for Adam optimizer
 )
 
 """
-  vectorize(text, alphabet, label=Array{Char,1}())
+  vectorize(text, alphabet)
 
-  Transforms a sentence into an array of vectors based on an alphabet and 
-  a label set for training. In training mode, `label` is given and this function 
+  Transforms a sentence into an array of vectors based on an alphabet for training. 
+  In training mode, this function 
   returns a pair of matrix `(x, y)` where `x` is a matrix of size `|alphabet| x maxSequenceLength` 
-  and `y` is a matrix of size `|label| x maxSequenceLength`. 
+  and `y` is also a matrix of size `|alphabet| x maxSequenceLength`. 
   In test mode, this function returns only `x` matrix.
 """
-function vectorize(text::String, alphabet::Array{Char}, label=Array{Char,1}())
+function vectorize(text::String, alphabet::Array{Char}, training::Bool=true)
     # truncate or pad input sequences to have the same maxSequenceLength
     n = options[:maxSequenceLength]
     x = removeDiacritics(text)
@@ -59,11 +59,11 @@ function vectorize(text::String, alphabet::Array{Char}, label=Array{Char,1}())
     # now all the subarrays in xs are of the same length, 
     # convert them into one-hot matrices of size (|alphabet| x maxSeqLen)
     Xs = map(x -> Float32.(Flux.onehotbatch(x, alphabet)), xs)
-    if (!isempty(label)) # training mode
-        texte = map(c -> c ∈ keys(charMap) ? c : options[:unkChar], text)
-        ys = collect(Iterators.partition(texte, n))
+    if (training) 
+        # texte = map(c -> c ∈ keys(charMap) ? c : options[:unkChar], text)
+        ys = collect(Iterators.partition(text, n))
         ys[end] = vcat(ys[end], ps)
-        Ys = map(y -> Float32.(Flux.onehotbatch(y, label)), ys)
+        Ys = map(y -> Float32.(Flux.onehotbatch(y, alphabet)), ys)
         return (Xs, Ys)
     else
         return Xs
@@ -76,15 +76,14 @@ end
     Evaluates the accuracy of a mini-batch, return the total labels in the batch and the number 
     of correctly predicted labels. This function is used in training for showing performance score.
 """
-function evaluate(model, Xb, Yb)::Tuple{Int,Int,Int}
+function evaluate(model, Xb, Yb)::Tuple{Int,Int}
     batchSize = length(Xb)
     as = map(X -> Flux.onecold(model(X)), Xb)
     bs = map(Y -> Flux.onecold(Y), Yb)
     # find the real length of target sequence (without padding symbol of index 1)
-    padding, same = 1, 2
+    padding = 1
     total = 0
     correct = 0
-    easy = 0
     for i = 1:batchSize
         t = options[:maxSequenceLength]
         while t > 0 && bs[i][t] == padding
@@ -92,10 +91,8 @@ function evaluate(model, Xb, Yb)::Tuple{Int,Int,Int}
         end
         total = total + t
         correct = correct + sum(as[i][1:t] .== bs[i][1:t])
-        js = bs[i][1:t] .== same
-        easy = easy + sum(as[i][1:t][js] .== same)
     end
-    return (total, correct, total - easy)
+    return (total, correct)
 end
 
 function train(options)
@@ -106,23 +103,16 @@ function train(options)
     N = min(options[:sampleSize], length(lines))
     @info "N = $(N)"
     ys = map(y -> lowercase(y), lines[1:N])
-    # create and save alphabet index
+    # create and save alphabet index    
     alphabet = unique(join(ys))
+    sort!(alphabet)
     prepend!(alphabet, options[:padChar])
     @info "alphabet = $(join(alphabet))"
     charIndex = Dict{Char,Int}(c => i for (i, c) in enumerate(alphabet))
     saveIndex(charIndex, options[:alphabetPath])
 
-    # create and save label index
-    label = collect(keys(charMap))
-    prepend!(label, options[:unkChar])
-    prepend!(label, options[:padChar])
-    @info "label = $(join(label))"
-    labelIndex = Dict{Char,Int}(c => i for (i, c) in enumerate(label))
-    saveIndex(labelIndex, options[:labelPath])
-
     # create training sequences
-    XYs = map(y -> vectorize(y, alphabet, label), ys)
+    XYs = map(y -> vectorize(y, alphabet), ys)
     Xs = collect(Iterators.flatten(map(xy -> xy[1], XYs)))
     Ys = collect(Iterators.flatten(map(xy -> xy[2], XYs)))
     # batch inp/out sequences
@@ -149,8 +139,7 @@ function train(options)
     # define a model
     model = Chain(
         GRU(length(alphabet), options[:hiddenSize]),
-        Dropout(0.5),
-        Dense(options[:hiddenSize], length(label))
+        Dense(options[:hiddenSize], length(alphabet))
     )
     @info model
     # compute the loss of the model on a batch
@@ -160,12 +149,10 @@ function train(options)
             t = options[:maxSequenceLength]
             while (ys[t] == 1) t = t - 1; end
             Z = model(X)
-            return Flux.logitcrossentropy(Z[:,1:t], Y[:,t])
+            return Flux.logitcrossentropy(Z[:,1:t], Y[:,1:t])
         end
         Flux.reset!(model)
-        batchSize = length(Xb)
-        value = sum(g(Xb[i], Yb[i]) for i=1:batchSize)
-        return value
+        return sum(g(Xb[i], Yb[i]) for i=1:length(Xb))
     end
     optimizer = ADAM(options[:η])
     
@@ -175,13 +162,12 @@ function train(options)
         J = sum(loss(dataset_train[i]...) for i=1:length(dataset_train))
         push!(Js, J)
         pairs_test = [evaluate(model, dataset_test[i]...) for i=1:length(dataset_test)]
-        u, v, w = reduce(((a1, b1, c1), (a2, b2, c2)) -> (a1 + a2, b1 + b2, c1+c2), pairs_test)
+        u, v = reduce(((a1, b1), (a2, b2)) -> (a1 + a2, b1 + b2), pairs_test)
         push!(accuracy_test, v/u)
         pairs_train = [evaluate(model, dataset_train[i]...) for i=1:length(dataset_train)]
-        u, v, w = reduce(((a1, b1, c1), (a2, b2, c2)) -> (a1 + a2, b1 + b2, c1 + c2), pairs_train)
+        u, v = reduce(((a1, b1), (a2, b2)) -> (a1 + a2, b1 + b2), pairs_train)
         push!(accuracy_train, v/u)
         @info "loss = $J, accuracy_test = $(accuracy_test[end]), accuracy_train = $(accuracy_train[end])"
-        @info "not easy char. accuracy (training) = $(w/u)"
     end
     for t=1:options[:numEpochs]
         @time Flux.train!(loss, params(model), dataset_train, optimizer, cb = Flux.throttle(evalcb, 60))
@@ -196,7 +182,7 @@ function train(options)
 end
 
 function predict(text::String, model, alphabet::Array{Char}, labelMap::Dict{Int,Char})::String
-    Xs = vectorize(text, alphabet)
+    Xs = vectorize(text, alphabet, false)
     zs = map(X -> Flux.onecold(model(X)), Xs)
     cs = map(z -> join(map(i -> labelMap[i], z)), zs)
     texte = collect(join(cs))[1:length(text)]
@@ -206,22 +192,20 @@ function predict(text::String, model, alphabet::Array{Char}, labelMap::Dict{Int,
 end
 
 function test(text, model)
-    alphabet = loadAlphabet(options[:alphabetPath])
-    label = loadAlphabet(options[:labelPath])
-    labelIndex = loadIndex(options[:labelPath])
-    labelMap = Dict{Int,Char}(i => c for (c,i) in labelIndex)
-    test(text, model, alphabet, label, labelMap)
+    alphabetIndex = loadAlphabet(options[:alphabetPath])
+    alphabetMap = Dict{Int,Char}(i => c for (c,i) in alphabetIndex)
+    test(text, model, alphabet, alphabetMap)
 end
 
-function test(text, model, alphabet, label, labelMap)
-    Xs, Ys = vectorize(text, alphabet, label)
+function test(text, model, alphabet, alphabetMap)
+    Xs, Ys = vectorize(text, alphabet)
     xs = Flux.onecold(Xs[1])
     @info alphabet[xs]
     ys = Flux.onecold(Ys[1])
-    vs = join(map(y -> labelMap[y], ys))
+    vs = join(map(y -> alphabetMap[y], ys))
     @info vs
     zs = Flux.onecold(model(Xs[1]))
-    ws = join(map(y -> labelMap[y], zs))
+    ws = join(map(y -> alphabetMap[y], zs))
     @info ws
 end
 
