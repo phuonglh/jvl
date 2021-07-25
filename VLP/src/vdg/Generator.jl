@@ -3,11 +3,6 @@
 
 module VDG
 
-using Base: Bool
-using Base.Iterators: sort!
-using Base.Iterators: push!
-using Base.Iterators: isempty
-using FLoops: Iterators
 using Flux
 using Flux: @epochs
 using BSON: @save, @load
@@ -17,6 +12,7 @@ using Random
 
 # using CSV
 # using DataFrames
+# using Plots
 
 include("DiacriticsRemoval.jl")
 include("Utils.jl")
@@ -156,29 +152,37 @@ function train(options)
     end
     optimizer = ADAM(options[:η])
     
-    accuracy_test, accuracy_train = Array{Float64,1}(), Array{Float64,1}()
+    # accuracy_test, accuracy_train = Array{Float64,1}(), Array{Float64,1}()
     Js = Array{Float64,1}()
     function evalcb() 
         J = sum(loss(dataset_train[i]...) for i=1:length(dataset_train))
         push!(Js, J)
-        pairs_test = [evaluate(model, dataset_test[i]...) for i=1:length(dataset_test)]
-        u, v = reduce(((a1, b1), (a2, b2)) -> (a1 + a2, b1 + b2), pairs_test)
-        push!(accuracy_test, v/u)
-        pairs_train = [evaluate(model, dataset_train[i]...) for i=1:length(dataset_train)]
-        u, v = reduce(((a1, b1), (a2, b2)) -> (a1 + a2, b1 + b2), pairs_train)
-        push!(accuracy_train, v/u)
-        @info "loss = $J, accuracy_test = $(accuracy_test[end]), accuracy_train = $(accuracy_train[end])"
+        @info "J(θ) = $J"
+        # pairs_test = [evaluate(model, dataset_test[i]...) for i=1:length(dataset_test)]
+        # u, v = reduce(((a1, b1), (a2, b2)) -> (a1 + a2, b1 + b2), pairs_test)
+        # push!(accuracy_test, v/u)
+        # pairs_train = [evaluate(model, dataset_train[i]...) for i=1:length(dataset_train)]
+        # u, v = reduce(((a1, b1), (a2, b2)) -> (a1 + a2, b1 + b2), pairs_train)
+        # push!(accuracy_train, v/u)
+        # @info "loss = $J, test accuracy = $(accuracy_test[end]), training accuracy = $(accuracy_train[end])"
     end
-    for t=1:options[:numEpochs]
+    for _=1:options[:numEpochs]
         @time Flux.train!(loss, params(model), dataset_train, optimizer, cb = Flux.throttle(evalcb, 60))
     end
     if (options[:gpu])
         model = model |> cpu
     end
     @save options[:modelPath] model
-    # using Plots
-    # plot(1:length(Js), accuracy_test, accuracy_train, xlabel="iteration", ylabel="accuracy", label=["test", "train"])
-    return model
+    # report test accuracy and training accuracy
+    pairs_test = [evaluate(model, dataset_test[i]...) for i=1:length(dataset_test)]
+    u, v = reduce(((a1, b1), (a2, b2)) -> (a1 + a2, b1 + b2), pairs_test)
+    push!(accuracy_test, v/u)
+    pairs_train = [evaluate(model, dataset_train[i]...) for i=1:length(dataset_train)]
+    u, v = reduce(((a1, b1), (a2, b2)) -> (a1 + a2, b1 + b2), pairs_train)
+    push!(accuracy_train, v/u)
+    @info "test accuracy = $(accuracy_test[end]), training accuracy = $(accuracy_train[end])"
+    # plot(1:length(Js), xlabel="iteration", ylabel="loss", label=["J"])
+    return model, Js
 end
 
 function predict(text::String, model, alphabet::Array{Char}, labelMap::Dict{Int,Char})::String
