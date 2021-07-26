@@ -19,17 +19,17 @@ include("Utils.jl")
 include("BiRNN.jl")
 
 options = Dict{Symbol,Any}(
-    :sampleSize => 5_000,
+    :sampleSize => 8_000,
     :dataPath => string(pwd(), "/dat/vdg/010K.txt"),
     :alphabetPath => string(pwd(), "/dat/vdg/alphabet.txt"),
     :modelPath => string(pwd(), "/dat/vdg/vdg.bson"),
     :maxSequenceLength => 64,
     :batchSize => 32,
-    :numEpochs => 20,
+    :numEpochs => 50,
     :unkChar => 'S',
     :padChar => 'P',
     :gpu => false,
-    :hiddenSize => 64,
+    :hiddenSize => 128,
     :split => [0.8, 0.2],
     :η => 1E-3 # learning rate for Adam optimizer
 )
@@ -152,7 +152,7 @@ function train(options)
     end
     optimizer = ADAM(options[:η])
     
-    # accuracy_test, accuracy_train = Array{Float64,1}(), Array{Float64,1}()
+    accuracy_test, accuracy_train = Array{Float64,1}(), Array{Float64,1}()
     Js = Array{Float64,1}()
     function evalcb() 
         J = sum(loss(dataset_train[i]...) for i=1:length(dataset_train))
@@ -196,8 +196,8 @@ function predict(text::String, model, alphabet::Array{Char}, labelMap::Dict{Int,
 end
 
 function test(text, model)
-    alphabetIndex = loadAlphabet(options[:alphabetPath])
-    alphabetMap = Dict{Int,Char}(i => c for (c,i) in alphabetIndex)
+    alphabet = loadAlphabet(options[:alphabetPath])
+    alphabetMap = Dict{Int,Char}(i => c for (i,c) in enumerate(alphabet))
     test(text, model, alphabet, alphabetMap)
 end
 
