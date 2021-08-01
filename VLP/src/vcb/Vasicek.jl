@@ -10,7 +10,7 @@ T1 = 1.25
 # Zero-coupon bond prices in Vasicek model 
 function zcPrice(r0, κ, θ, σ, T, t)
     u = (1/κ)*(1-exp(-κ*(T-t))) 
-    v = exp((θ - 0.5*σ^2/a^2)*(u - T + t) - (σ^2) / (4*κ) * (u^2))
+    v = exp((θ - 0.5*σ^2/κ^2)*(u - T + t) - (σ^2) / (4*κ) * (u^2))
     return (v*exp(-u*r0))
 end
 

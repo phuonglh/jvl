@@ -43,7 +43,7 @@ function integral(ν, β, t0, t1)
 end
     
 """
-    capPrice(m, κs, prices, Ts, ν, β,  δ=0.5)
+    capGaussianHJM(m, κs, prices, Ts, ν, β,  δ=0.5)
 
     Compute cap price in Gaussian HJM model. Here `m` is a maturity and `kappas[m]` is the corresponding 
     cap rate. `T` contains time legs. `ν` and `β` are two parameters. 
