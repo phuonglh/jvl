@@ -39,7 +39,7 @@ function kappas(maturities::Array{Int,1}, prices::Array{Float64,1}, δ::Float64)
 end
 
 """
-    capBlack(m, kappas, prices, Ts, Fs, δ, σ)
+    capBlack(m, κs, prices, Ts, Fs, δ, σ)
 
     Compute cap price using the Black formula. Here, only `σ` parameter is unknown.
 """
@@ -57,7 +57,7 @@ function capBlack(m::Int, κs::Array{Float64,1}, prices::Array{Float64,1}, Ts::A
 end
 
 """
-    capBachelier(m, kappas, prices, Ts, Fs, δ, σ)
+    capBachelier(m, κs, prices, Ts, Fs, δ, σ)
 
     Compute cap price using the Bachelier formula. Here, only `σ` parameter is unknown.    
 """
