@@ -1,4 +1,4 @@
-# Vietnamese diacritics generation
+# An implementation of Vietnamese diacritics generation in Julia
 # (C) phuonglh@gmail.com, 2021
 
 module VDG

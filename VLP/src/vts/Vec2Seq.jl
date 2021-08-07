@@ -19,7 +19,7 @@ include("Utils.jl")
 include("BiRNN.jl")
 
 options = Dict{Symbol,Any}(
-    :sampleSize => 10_000,
+    :sampleSize => 2_000,
     :dataPath => string(pwd(), "/dat/vdg/010K.txt"),
     :alphabetPath => string(pwd(), "/dat/vts/alphabet.txt"),
     :modelPath => string(pwd(), "/dat/vts/vts.bson"),
@@ -29,6 +29,7 @@ options = Dict{Symbol,Any}(
     :bosChar => 'B',
     :eosChar => 'E',
     :padChar => 'P',
+    :hiddenSize => 128,
     :gpu => false,
     :η => 1E-3 # learning rate for Adam optimizer
 )
@@ -98,7 +99,8 @@ function train(options)
     @info "typeof(Y1) = $(typeof(Ybs[1]))" 
     # define a model
     model = Chain(
-        GRU(length(alphabet), length(alphabet))
+        GRU(length(alphabet), options[:hiddenSize]),
+        Dense(options[:hiddenSize], length(alphabet), relu)
     )
     @info model
     # compute the loss of the model on a batch
@@ -131,7 +133,7 @@ function train(options)
     return model, Js
 end
 
-function generate(prefix::String, model, alphabet::Array{Char}, numChars::Int=100)::String
+function generate(prefix::String, model, alphabet::Array{Char}, numChars::Int=100, sampling::Bool=false)::String
     text = string(options[:bosChar], prefix)
     n = length(text)
     X = vectorize(text, alphabet, false)[1]
@@ -140,7 +142,8 @@ function generate(prefix::String, model, alphabet::Array{Char}, numChars::Int=10
     prediction = Array{Int,1}()
     Flux.reset!(model)
     for _=1:numChars
-        ŷ = wsample(alphabet, softmax(y))
+        z = softmax(y)
+        ŷ = sampling ? wsample(alphabet, z) : alphabet[Flux.onecold(z)]
         ỹ = Flux.onehot(ŷ, alphabet)
         append!(prediction, Flux.onecold(ỹ))
         y = model(ỹ)
