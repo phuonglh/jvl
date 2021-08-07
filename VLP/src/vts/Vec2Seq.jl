@@ -100,6 +100,7 @@ function train(options)
     # define a model
     model = Chain(
         GRU(length(alphabet), options[:hiddenSize]),
+        GRU(options[:hiddenSize], options[:hiddenSize]),
         Dense(options[:hiddenSize], length(alphabet), relu)
     )
     @info model
@@ -123,7 +124,8 @@ function train(options)
         push!(Js, J)
         @info "J(θ) = $J"
     end
-    for _=1:options[:numEpochs]
+    for t=1:options[:numEpochs]
+        @info "epoch $(t)"
         @time Flux.train!(loss, params(model), dataset, optimizer, cb = Flux.throttle(evalcb, 60))
     end
     if (options[:gpu])
@@ -134,6 +136,7 @@ function train(options)
 end
 
 function generate(prefix::String, model, alphabet::Array{Char}, numChars::Int=100, sampling::Bool=false)::String
+    Flux.reset!(model)
     text = string(options[:bosChar], prefix)
     n = length(text)
     X = vectorize(text, alphabet, false)[1]
