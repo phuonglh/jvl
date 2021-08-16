@@ -19,7 +19,7 @@ include("Utils.jl")
 include("BiRNN.jl")
 
 options = Dict{Symbol,Any}(
-    :sampleSize => 2_000,
+    :sampleSize => 10_000,
     :dataPath => string(pwd(), "/dat/vdg/010K.txt"),
     :alphabetPath => string(pwd(), "/dat/vts/alphabet.txt"),
     :modelPath => string(pwd(), "/dat/vts/vts.bson"),
