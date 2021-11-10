@@ -50,7 +50,7 @@ end
 # main program
 
 # Step 0: read data 
-(X, y) = readData("/home/phuonglh/jvl/VLP/src/iml/wdbc.txt")
+(X, y) = readData("wdbc.txt")
 # Step 1: parameter estimation
 (θ, μ, σ) = train(X, y)
 # Step 2: evaluate the classification accuracy of the trained model
