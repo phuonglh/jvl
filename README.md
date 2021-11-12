@@ -323,3 +323,16 @@ Train and evaluate the extended parser:
     using Flux
     ArcEagerParserEx.evaluate(options)
 ```
+# Vietnamese Spelling Check 
+
+The `src/vsc/Kar.jl` code implements a semi-character RNN (GRU) model that predict 
+the jumbling type of a Vietnamese syllable. There are five types: swap (`:s`), delete (`:d`), replace (`:r`), 
+insert (`:i`) and none (`:n`). 
+
+Given a sentence, for each of its syllable, we randomly apply a jumbling 
+method on the syllable with a probablity p, for example p = 0.1, to make it a spelling error. 
+The entire sentence is then used as an example to train a sequence prediction model, where 
+an input is a sequence of syllables `[s_1, s_2,...,s_N]` and its corresponding output is a jumbling 
+sequence `[y_1, y_2,...,y_N]` where a label `y_k` in the set `[:s, :d, :r, :i, :n]`.
+
+To train a `Kar` model with some options, simply run `Kar.train(Kar.options)`. 

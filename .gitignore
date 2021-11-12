@@ -1,0 +1,11 @@
+target/
+*.class
+*.gz
+.bloop
+.metals
+.vscode
+.jar
+.out
+.tok
+.bson
+.log
