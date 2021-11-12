@@ -152,7 +152,7 @@ end
 """
     evaluate(model, xs, ys)
 
-    Evaluates the accuracy of a mini-batch, return the total labels in the batch and the number of correct predicted labels.
+    Evaluates the accuracy of a mini-batch, return the total labels in the batch and the number of correctly predicted labels.
     This function is used in training for performance update.
 """
 function evaluate(model, xs::Array{Array{Float32,2}}, ys::Array{Array{Float32,2}})::Tuple{Int,Int}
