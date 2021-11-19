@@ -17,7 +17,7 @@ Different parsing methods employ their own sets of actions.
 Given a state, the set of transition actions are:
 
 1. `SHIFT`: pop the front word from the buffer, and push it onto the stack.
-2. `REDUCE-L/R-X`: pop the top two constituents of the stack, combine them into a new constituent with label `X`, and push the new constituent onto the stack.
+2. `REDUCE-L/R-X`: pop the top two constituents off the stack, combine them into a new constituent with label `X`, and push the new constituent onto the stack.
 3. `UNARY-X`: pop the top constituent off the stack, raise it to a new constituent with label `X`, and push the new constituent onto the stack.
 4. `FINISH`: pop the root node of the stack and end parsing.
 
@@ -30,3 +30,50 @@ The deductive system of this method is as follows.
 |`UNARY-X`| `([s,s_0], i, false)`| `([s, X_{s_0}], i, false)` |
 |`FINISH`| `(s,i,false)` | `(s, i, true)`|
 
+For example, given the sentence `the little boy likes red potatoes.` whose syntactic tree is 
+```
+(S 
+    (NP (the little boy)) 
+    (VP likes (NP (red potatoes)))
+    (.)
+)
+```
+Its corresponding binarized tree is
+```
+(S-r
+    (NP-r 
+        the 
+        (NP-r* 
+            little 
+            boy
+        )
+    )
+    (S-l* 
+        (VP-l 
+            likes 
+            (NP-r* 
+                red 
+                tomatoes
+            )
+        (.)
+    )
+)
+```
+The sequence of actions to construct this binarized tree is as follows.
+
+```
+01. SHIFT
+02. SHIFT
+03. SHIFT
+04. REDUCE-R-NP
+05. REDUCE-R-NP
+06. SHIFT
+07. SHIFT
+08. SHIFT
+09. REDUCE-R-NP
+10. REDUCE-L-VP
+11. SHIFT
+12. REDUCE-L-S
+13. REDUCE-R-S
+14. FINISH
+```
