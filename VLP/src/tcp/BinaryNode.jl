@@ -22,6 +22,11 @@ function addLeftChild(data, parent::BinaryNode)
   parent.left = node
 end
 
+function updateLeftChild(node::BinaryNode, parent::BinaryNode)
+  !isdefined(parent, :left) || error("Left child is already assigned!")
+  parent.left = node
+end
+
 "Add right child with some data to a parent."
 function addRightChild(data, parent::BinaryNode)
   !isdefined(parent, :right) || error("Right child is already assigned!")
@@ -29,3 +34,7 @@ function addRightChild(data, parent::BinaryNode)
   parent.right = node
 end
 
+function updateRightChild(node::BinaryNode, parent::BinaryNode)
+  !isdefined(parent, :right) || error("Right child is already assigned!")
+  parent.right = node
+end
