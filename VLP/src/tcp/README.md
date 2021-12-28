@@ -26,11 +26,11 @@ The deductive system of this method is as follows.
 |Action|Before|After|
 | ---:       | :---  |  :---  |
 |`SHIFT`| `([s], i, false)` | `([s,w_i], i+1, false)`|
-|`REDUCE-L/R-X`| `([s,s_2,s_1], i, false)` | `([s,X_{s_2,s_1}], i, false)` |
-|`UNARY-X`| `([s,s_0], i, false)`| `([s, X_{s_0}], i, false)` |
+|`REDUCE-L/R-X`| `([s,s_2,s_1], i, false)` | `([s,X(s_2,s_1)], i, false)` |
+|`UNARY-X`| `([s,s_0], i, false)`| `([s, X(s_0)], i, false)` |
 |`FINISH`| `(s,i,false)` | `(s, i, true)`|
 
-For example, given the sentence `the little boy likes red potatoes.` whose syntactic tree is 
+For example, given the sentence `"the little boy likes red potatoes."` whose syntactic tree is 
 ```
 (S 
     (NP (the little boy)) 
@@ -77,3 +77,20 @@ The sequence of actions to construct this binarized tree is as follows.
 13. REDUCE-R-S
 14. FINISH
 ```
+
+| stack |  buffer | action | 
+| ---:       | :---   | :---:    |
+|  [] | [`the`, `little`, `boy`, `likes`,...] | `SHIFT`| 
+|  [`the`] | [`little`, `boy`, `likes`,...] | `SHIFT`| 
+|  [`the`, `little`] | [`boy`, `likes`, `red`,...] | `SHIFT`| 
+|  [`the`, `little`, `boy`] | [`likes`, `red`, `potatoes`,...] | `REDUCE-R-NP`| 
+|  [`the`, `NP-r`(`little`, `boy`)] | [`likes`, `red`, `potatoes`,...] | `REDUCE-R-NP`| 
+|  [`NP-R`(`the`, `NP-R`(`little`, `boy`))] | [`likes`, `red`, `potatoes`,...] | `SHIFT`| 
+|  [`NP-R`(`the`, `NP-R`(`little`, `boy`)), `likes`] | [`red`, `potatoes`,`.`] | `SHIFT`| 
+|  [`NP-R`(`the`, `NP-R`(`little`, `boy`)), `likes`, `red`] | [`potatoes`,`.`] | `SHIFT`| 
+|  [`NP-R`(`the`, `NP-R`(`little`, `boy`)), `likes`, `red`, `potatoes`] | [`.`] | `REDUCE-R-NP`| 
+|  [`NP-R`(`the`, `NP-R`(`little`, `boy`)), `likes`, `NP-R`(`red`, `potatoes`)] | [`.`] | `REDUCE-L-VP`| 
+|  [`NP-R`(`the`, `NP-R`(`little`, `boy`)), `VP-L`(`likes`, `NP-R`(`red`, `potatoes`))] | [`.`] | `SHIFT`| 
+|  [`NP-R`(`the`, `NP-R`(`little`, `boy`)), `VP-L`(`likes`, `NP-R`(`red`, `potatoes`)), `.`] | [] | `REDUCE-L-S`| 
+|  [`NP-R`(`the`, `NP-R`(`little`, `boy`)), `S-L`(`VP-L`(`likes`, `NP-R`(`red`, `potatoes`)), `.`)] | [] | `REDUCE-R-S`| 
+|  [`S-R`(`NP-R`(`the`, `NP-R`(`little`, `boy`)), `S-L`(`VP-L`(`likes`, `NP-R`(`red`, `potatoes`)), `.`))] | [] | `FINISH`| 
