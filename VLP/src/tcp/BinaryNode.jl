@@ -1,4 +1,3 @@
-
 using AbstractTrees
 
 mutable struct BinaryNode{T}
