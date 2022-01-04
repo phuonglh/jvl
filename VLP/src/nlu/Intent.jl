@@ -124,7 +124,7 @@ function batch(df::DataFrame, wordIndex::Dict{String,Int}, labelIndex::Dict{Stri
 end
 
 function train(options)
-    df = readCorpus(options[:corpusPath])
+    df = readIntents(options[:corpusPath])
     # random split df for training/test data
     Random.seed!(220712)
     n = nrow(df)

@@ -2,10 +2,11 @@
 
 module Corpus
 
-export read
+export readIntents
 
 using DataFrames
 using JSON3
+using CSV
 
 
 """
