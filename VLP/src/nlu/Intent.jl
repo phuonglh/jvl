@@ -29,7 +29,7 @@ using .Corpus
 options = Dict{Symbol,Any}(
     :minFreq => 1,
     :vocabSize => 2^16,
-    :wordSize => 20,
+    :wordSize => 100,
     :hiddenSize => 128,
     :maxSequenceLength => 10,
     :batchSize => 64,
@@ -89,9 +89,10 @@ end
     batch(df, wordIndex, labelIndex, options)
 
     Create batches of data for training or evaluating. Each batch contains a pair (Xb, Yb) where 
-    Xb is an array of matrices of size (d x maxSequenceLength). Each column of Xb is a vector representing a token.
-    If a sentence is shorter than maxSequenceLength, it is padded. To speed up the computation, Xb and Yb 
-    are stacked as 3-d matrices where the 3-rd dimention is the batch one.
+    `Xb` is a matrix of shape (maxSequenceLength x batchSize); each column of `Xb` is a vector of token ids of a 
+    sentence. If this sentence is shorter than maxSequenceLength then it is padded. `Yb` is a matrix of shape 
+    (numLabels x batchSize); each column of `Yb` is an one-hot vector. When `Xb` is passed to an embedding layer, 
+    it is turned into a 3-d tensors.
 """
 function batch(df::DataFrame, wordIndex::Dict{String,Int}, labelIndex::Dict{String,Int}, options)
     X, Y = Array{Array{Int,1},1}(), Array{Array{Int,1},1}()
@@ -159,7 +160,7 @@ function train(options)
         return Flux.logitcrossentropy(Ŷb, Yb)
     end
 
-    Xs, Ys = batch(dfU, wordIndex, labelIndex, options)    
+    Xs, Ys = batch(dfU, wordIndex, labelIndex, options)
     trainingData = collect(zip(Xs, Ys))
     Xv, Yv = batch(dfV, wordIndex, labelIndex, options)    
     testData = collect(zip(Xv, Yv))

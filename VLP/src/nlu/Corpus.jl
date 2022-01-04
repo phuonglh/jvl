@@ -10,7 +10,7 @@ using CSV
 
 
 """
-    read(path)
+    readIntents(path)
 
     Reads a .txt or .csv or .json file and build a data frame for the intent detection module.
     The data frame should have two columns :intent and :text. The JSON data format should be similar 
