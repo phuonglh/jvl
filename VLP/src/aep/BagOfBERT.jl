@@ -18,14 +18,12 @@ end
     This layer is used in the `ClassifierBERT.jl`.
 """
 function (g::BagOfBERT)(x::Tuple{Matrix{Int},Matrix{Int},Matrix{Float32}})
-    a, B, c = x
+    a, b, bert = x
     us = g.fs[1](a) # embedding matrix from word, shape and part-of-speech tags
     m = size(b,2)
-    b = g.fs[2](B) # identity
     # token embeddings
     as = [vec(us[:, b[:,j]]) for j=1:m] # apply for each column in b
     α = hcat(as...)
-    bert = g.fs[3](c) # identity
     # in each column, we compute sum of 4 BERT vectors instead of concatenating (with function vec)
     # to reduce the dimensionality
     vs = [vec(sum(bert[:, b[:,j]], dims=2)) for j=1:m] # apply for each column in b

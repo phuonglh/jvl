@@ -34,6 +34,7 @@ vocab = Vocabulary(wordpiece)
 """
 function bertify(sentence::String)::Matrix{Float32}
     pieces = sentence |> tokenizer |> wordpiece
+    pieces = [pieces; "[pad]"]
     piece_indices = vocab(pieces)
     segment_indices = fill(1, length(pieces))
 
@@ -94,7 +95,7 @@ end
     Train a classifier model.
 """
 function train(options)
-    sentences = Corpus.readCorpusUD(options[:trainCorpus], options[:maxSequenceLength])[1:100]
+    sentences = Corpus.readCorpusUD(options[:trainCorpus], options[:maxSequenceLength])
     @info "#(sentencesTrain) = $(length(sentences))"
     contexts = collect(Iterators.flatten(map(sentence -> TransitionClassifier.decode(sentence), sentences)))
     @info "#(contextsTrain) = $(length(contexts))"
@@ -150,6 +151,7 @@ function train(options)
     @info "Total weight of initial word embeddings = $(sum(mlp[1].fs[1].word.W))"
 
     # build development dataset
+    println("Building development dataset...")
     sentencesDev = Corpus.readCorpusUD(options[:validCorpus], options[:maxSequenceLength])
     @info "#(sentencesDev) = $(length(sentencesDev))"
     contextsDev = collect(Iterators.flatten(map(sentence -> TransitionClassifier.decode(sentence), sentencesDev)))
