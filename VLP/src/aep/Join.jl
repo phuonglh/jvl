@@ -29,7 +29,8 @@ end
 
 """
     a: token id matrix of size (3 x sentenceLength), each column contains 3 ids for (word, shape, tag)
-    b: token position matrix of size 4 x k, in which each column corresponds to a parsing configuration
+    b: token position matrix of size 4 x m, in which each column corresponds to a parsing configuration
+    This layer is used in the `Classifier.jl`.
 """
 function (g::Join)(x::Tuple{Array{Int,2},Array{Int,2}})
     a, b = x
@@ -92,3 +93,33 @@ function (f::ConcatLayer)(x::Tuple{Array{Int,2},Array{Int,1},Array{Int,1}})
 end
 
 Flux.@functor ConcatLayer
+
+# December 2021, add an additional experiment with BERT embeddings
+using Transformers
+using Transformers.Basic
+using Transformers.Pretrain
+
+# load a pre-trained BERT model for English (see ~/.julia/datadeps/)
+bert_model, wordpiece, tokenizer = pretrain"bert-uncased_L-12_H-768_A-12"
+# load mBERT (see ~/.julia/datadeps/)
+# bert_model, wordpiece, tokenizer = pretrain"bert-multi_cased_L-12_H-768_A-12"
+vocab = Vocabulary(wordpiece)
+
+"""
+    featurize(sentence)
+
+    Transforms a sentence to a vector using a pre-trained BERT model.
+"""
+function featurize(sentence::String)::Matrix{Float32}
+    pieces = sentence |> tokenizer |> wordpiece
+    piece_indices = vocab(pieces)
+    segment_indices = fill(1, length(pieces))
+
+    sample = (tok = piece_indices, segment = segment_indices)
+    embeddings = sample |> bert_model.embed
+    # compute a matrix of shape (768 x length(pieces))
+    features = embeddings |> bert_model.transformers
+    return features
+end
+
+#TODO

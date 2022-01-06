@@ -29,19 +29,19 @@ using .Corpus
 options = Dict{Symbol,Any}(
     :minFreq => 1,
     :vocabSize => 2^16,
-    :wordSize => 100,
+    :wordSize => 32,
     :hiddenSize => 128,
     :maxSequenceLength => 10,
     :batchSize => 64,
     :numEpochs => 50,
     :corpusPath => string(pwd(), "/dat/nlu/sample.txt"),
-    :modelPath => string(pwd(), "/dat/nlu/model.bson"),
+    :modelPath => string(pwd(), "/dat/nlu/gru.bson"),
     :wordPath => string(pwd(), "/dat/nlu/word.txt"),
     :labelPath => string(pwd(), "/dat/nlu/label.txt"),
     :numCores => 4,
     :verbose => false,
     :unknown => "[UNK]",
-    :paddingX => "[PAD_X]",
+    :paddingX => "[PAD]",
     :delimiters => r"[-@…–~`'“”’‘|\/$.,:;!?'\u0022\s_]",
     :split => [0.8, 0.2],
     :gpu => false
@@ -117,9 +117,9 @@ function batch(df::DataFrame, wordIndex::Dict{String,Int}, labelIndex::Dict{Stri
     # build batches of data for training
     Xb = Iterators.partition(X, options[:batchSize])
     Yb = Iterators.partition(Y, options[:batchSize])
-    # stack each input batch as a 3-d matrix
+    # stack each input batch as a matrix
     Xs = map(b -> Int.(Flux.batch(b)), Xb)
-    # stack each output batch as a 2-d matrix
+    # stack each output batch as a matrix
     Ys = map(b -> Int.(Flux.batch(b)), Yb)
     (Xs, Ys)
 end
@@ -221,26 +221,6 @@ function train(options)
     # plot(1:length(accuracy), [as, bs], xlabel="iterations", ylabel="accuracy", label=["train." "test"], legend=:bottomright, lw=2)
     return encoder, accuracy
 end
-
-# """
-#     evaluate(encoder, Xs, Ys, options)
-
-#     Evaluates the accuracy of the classifier w/o using threaded execution.
-# """
-# function evaluate(encoder, Xs, Ys, options)
-#     numBatches = length(Xs)
-#     numMatches = 0
-#     numSents = 0
-#     for i=1:numBatches
-#         Ŷb = Flux.onecold(encoder(Xs[i]) |> cpu) # fix an issue of Julia 1.5
-#         Yb = Flux.onecold(Ys[i] |> cpu) 
-#         matches = sum(Ŷb .== Yb)
-#         numMatches += matches
-#         numSents += length(Yb)
-#     end
-#     @info "Total matches = $(numMatches)/$(numSents)"
-#     return 100 * (numMatches/numSents)
-# end
 
 """
     evaluate(encoder, Xs, Ys, options)
