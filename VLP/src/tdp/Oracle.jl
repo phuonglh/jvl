@@ -14,7 +14,7 @@ struct Arc
 end
 
 struct Config
-    stack::Stack{String}
+    stack::DataStructures.Stack{String}
     queue::Queue{String}
     arcs::Array{Arc}
 end
@@ -26,7 +26,7 @@ end
 
 # phuonglh: A simple hack function to copy a stack. The library DataStructures does not provide 
 # this function by default (Feb., 2021)
-Base.copy(s::Stack) = begin
+Base.copy(s::DataStructures.Stack) = begin
     elements = collect(s.store)
     s2 = Stack{eltype(s)}()
     for e in elements
@@ -159,7 +159,7 @@ end
   classifier.
 """
 function decode(sentence::Sentence)::Array{Context}
-    σ = Stack{String}()
+    σ = DataStructures.Stack{String}()
     β = Queue{String}()
     tokenMap = Dict{String,Corpus.Token}(token.annotation[:id] => token for token in sentence.tokens)
     for id in map(token -> token.annotation[:id], sentence.tokens)
@@ -204,7 +204,7 @@ end
     examining/simulating the parsing process and build examples for writing a manuscript.
 """
 function decodeExample(sentence::Sentence)
-    σ = Stack{String}()
+    σ = DataStructures.Stack{String}()
     β = Queue{String}()
     tokenMap = Dict{String,Corpus.Token}(token.annotation[:id] => token for token in sentence.tokens)
     for id in map(token -> token.annotation[:id], sentence.tokens)

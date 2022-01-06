@@ -10,8 +10,10 @@ using CUDA
 include("EmbeddingWSP.jl")
 include("Join.jl")
 include("../tdp/Oracle.jl")
-include("Options.jl")
 include("../seq/BiRNN.jl")
+
+# This should be included after `Oracle.jl to override options...`
+include("Options.jl")
 
 using .Corpus
 
@@ -35,12 +37,12 @@ function extract(features::Array{String}, prefixes::Array{String})::Array{String
 end
 
 """
-    vocab(contexts, minFreq)
+    buildVocab(contexts, minFreq)
 
     Builds vocabularies of words and transitions. The word vocabulary is sorted by frequency.
     Only features whose count is greater than `minFreq` are kept.
 """    
-function vocab(contexts::Array{Context}, minFreq::Int = 2)::Vocabularies
+function buildVocab(contexts::Array{Context}, minFreq::Int = 2)::Vocabularies
     transitions = map(context -> context.transition, contexts)
     words = Iterators.flatten(map(context -> extract(context.features, ["ws", "wq"]), contexts))
     wordFrequency = Flux.frequencies(map(lowercase, words))
@@ -158,7 +160,7 @@ function train(options)
     @info "#(sentencesTrain) = $(length(sentences))"
     contexts = collect(Iterators.flatten(map(sentence -> decode(sentence), sentences)))
     @info "#(contextsTrain) = $(length(contexts))"
-    vocabularies = vocab(contexts)
+    vocabularies = buildVocab(contexts)
 
     prepend!(vocabularies.words, [options[:unknown]])
 
@@ -219,10 +221,6 @@ function train(options)
     @info "#(sentencesDev) = $(length(sentencesDev))"
     contextsDev = collect(Iterators.flatten(map(sentence -> decode(sentence), sentencesDev)))
     @info "#(contextsDev) = $(length(contextsDev))"
-
-    Xs, Ys = batch(sentences, wordIndex, shapeIndex, posIndex, labelIndex, options)
-    dataset = collect(zip(Xs, Ys))
-    @info "numBatches  = $(length(dataset))"
 
     XsDev, YsDev = batch(sentencesDev, wordIndex, shapeIndex, posIndex, labelIndex, options)
     datasetDev = collect(zip(XsDev, YsDev))
