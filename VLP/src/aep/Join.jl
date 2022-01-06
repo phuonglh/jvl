@@ -94,6 +94,7 @@ end
 
 Flux.@functor ConcatLayer
 
+#
 # December 2021, add an additional experiment with BERT embeddings
 using Transformers
 using Transformers.Basic
@@ -122,4 +123,34 @@ function featurize(sentence::String)::Matrix{Float32}
     return features
 end
 
-#TODO
+struct JoinWithBERT
+    fs # This is a EmbeddingWSP
+end
+
+"""
+    a: token id matrix of size (3 x sentenceLength), each column contains 3 ids for (word, shape, tag)
+    b: token position matrix of size 4 x m, in which each column corresponds to a parsing configuration
+    c: a raw sentence to compute the word embeddings from a BERT model.
+    This layer is used in the `ClassifierBERT.jl`.
+"""
+function (g::JoinWithBERT)(x::Tuple{Array{Int,2},Array{Int,2},String})
+    a, b, sentence = x
+    us = g.fs(a) # embedding matrix from word, shape and part-of-speech tags
+    m = size(b, 2)
+    # token embeddings
+    as = [vec(us[:, b[:,j]]) for j=1:m] # apply for each column in b
+    α = hcat(as...)
+    # BERT embeddings
+    bert = featurize(sentence) # this is a matrix of shape (768 x m)
+    # in each column, we compute sum of 4 BERT vectors instead of concatenating (with function vec)
+    # to reduce the dimensionality
+    vs = [sum(bert[:, b[:,j]], dims=2) for j=1:m] # apply for each column in b
+    β = hcat(vs...) # stack vs to get the output matrix instead of an array of arrays
+    @assert size(α, 2) == size(β, 2) # should be equal m
+    # stack α and β matrices
+    return vcat(α, β)
+end
+
+# make this custom layer trainable with back-propagation
+Flux.@functor JoinWithBERT
+

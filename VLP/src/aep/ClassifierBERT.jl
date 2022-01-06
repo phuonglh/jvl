@@ -39,17 +39,11 @@ function train(options)
     @info size(Xs[1][1][1]), size(Xs[1][1][2])
     @info size(Ys[1][1])
 
-    recurrentLayer = if options[:bidirectional]
-        BiGRU(options[:wordSize] + options[:shapeSize] + options[:posSize], options[:recurrentSize])
-    else
-        GRU(options[:wordSize] + options[:shapeSize] + options[:posSize], options[:recurrentSize])
-    end
     mlp = Chain(
-        Join(
-            EmbeddingWSP(vocabSize, options[:wordSize], length(shapeIndex), options[:shapeSize], length(posIndex), options[:posSize]),
-            recurrentLayer
+        JoinWithBERT(
+            EmbeddingWSP(vocabSize, options[:wordSize], length(shapeIndex), options[:shapeSize], length(posIndex), options[:posSize])
         ),
-        Dense(options[:featuresPerContext] * options[:recurrentSize], options[:hiddenSize], σ),
+        Dense(options[:wordSize] + options[:shapeSize] + options[:posSize] + 768, options[:hiddenSize], σ),
         Dense(options[:hiddenSize], length(labelIndex))
     )
     # save an index to an external file
