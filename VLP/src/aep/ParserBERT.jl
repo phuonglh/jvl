@@ -58,6 +58,8 @@ function run(mlp, wordIndex, shapeIndex, posIndex, labelIndex, options::Dict{Sym
         # convert sentence to a 3 x maxSequenceLength integer matrix
         ws = vectorizeSentence(sentence, wordIndex, shapeIndex, posIndex, options)
         as = Flux.batch(ws)
+        s = join(map(token -> token.word, sentence.tokens), " ")
+        bert = TransitionClassifierBERT.bertify(s)
         # the greedy parsing loop
         while !isempty(β) && !isempty(σ)
             u, v = tokenMap[first(σ)], tokenMap[first(β)]
@@ -79,8 +81,6 @@ function run(mlp, wordIndex, shapeIndex, posIndex, labelIndex, options::Dict{Sym
             end
             fs = [ws0; wq0; wq1; ws1] # this creates a vector of length 4
             bs = map(word -> positionIndex[lowercase(word)], fs)
-            s = join(map(token -> token.word, sentence.tokens), " ")
-            bert = TransitionClassifierBERT.bertify(s)        
             x = (as, bs, bert) # input to our model is a triple of (matrix, vector, bertVector)
             y = mlp(x)
             transition = labels[Flux.onecold(y)[1]]
@@ -130,14 +130,17 @@ end
 """
 function evaluate(options)
     sentences = readCorpusUD(options[:trainCorpus], options[:maxSequenceLength])
+    @info "Number of sentences = $(length(sentences))"
     @time uas, las = evaluate(options, sentences)
     @info "Training scores: UAS = $uas, LAS = $las"
 
     sentences = readCorpusUD(options[:validCorpus], options[:maxSequenceLength])
+    @info "Number of sentences = $(length(sentences))"
     @time uas, las = evaluate(options, sentences)
     @info "Development scores: UAS = $uas, LAS = $las"
 
     sentences = readCorpusUD(options[:testCorpus], options[:maxSequenceLength])
+    @info "Number of sentences = $(length(sentences))"
     @time uas, las = evaluate(options, sentences)
     @info "Test scores: UAS = $uas, LAS = $las"
 end
