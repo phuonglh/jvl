@@ -33,4 +33,13 @@ function (g::BagOfBERT)(x::Tuple{Matrix{Int},Matrix{Int},Matrix{Float32}})
     return vcat(α, β)
 end
 
+"""
+    This method is used in the inference process.
+"""
+function (g::BagOfBERT)(x::Tuple{Matrix{Int},Vector{Int},Matrix{Float32}})
+    z = zeros(Int, 4, 1)
+    z[:,1] = x[2]
+    return g((x[1], z, x[3]))
+end
+
 Flux.@functor BagOfBERT

@@ -27,6 +27,7 @@ bert_model, wordpiece, tokenizer = pretrain"bert-uncased_L-12_H-768_A-12"
 # bert_model, wordpiece, tokenizer = pretrain"bert-multi_cased_L-12_H-768_A-12"
 vocab = Vocabulary(wordpiece)
 
+
 """
     bertify(sentence)
 

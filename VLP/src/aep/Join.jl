@@ -15,6 +15,7 @@ Join(fs...) = Join(fs)
 """
     a: token id matrix of size (3 x sentenceLength), each column contains 3 ids for (word, shape, tag)
     b: token position vector which corresponds to a parsing configuration (4-element vector)
+    This is used in the inference process.
 """
 function (g::Join)(x::Tuple{Array{Int,2},Array{Int,1}})
     a, b = x
