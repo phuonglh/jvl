@@ -48,7 +48,6 @@ function run(mlp, wordIndex, shapeIndex, posIndex, labelIndex, options::Dict{Sym
         end
         A = Array{Arc,1}()
         config = Config(σ, β, A)
-        contexts = []
         config = next(config, "SH")
         transition = "SH"
         # create a word map to position
