@@ -4,7 +4,7 @@
 module Kar
 
 using Flux
-using Flux: @epochs, onehotbatch, throttle, crossentropy, reset!, onecold
+using Flux: @epochs, onehotbatch, throttle, logitcrossentropy, reset!, onecold
 using BSON: @save, @load
 
 include("Options.jl")
@@ -116,6 +116,10 @@ function predict(model, sentence::Array{String}, alphabet::Array{Char})::Array{S
     map(e -> options[:labels][e], y)
 end
 
+function predict(model, sentence::String, alphabet::Array{Char})::Array{Symbol}
+   predict(model, String.(split(sentence)), alphabet)
+end
+
 """
     evaluate(model, xs, ys)
 
@@ -186,35 +190,38 @@ function train(options)
     file = open(options[:alphabetPath], "w")
     write(file, join(alphabet))
     close(file)
-    Xb, Yb = batch(sentences, alphabet, mutations)
+    # create training data
+    X, Y = batch(sentences, alphabet, mutations)
+    n = Int(round(0.8*length(X)))
+    Xb, Yb = X[1:n], Y[1:n]
+    # create development data
+    Xd, Yd = X[n+1:end], Y[n+1:end]
     if options[:gpu] 
         @info "Bringing data to GPU..."
         Xb = map(t -> gpu.(t), Xb)
         Yb = map(t -> gpu.(t), Yb)
     end
     dataset = collect(zip(Xb, Yb))
-    @info "#(batches) = $(length(dataset))"
-    @info "typeof(X1) = $(typeof(Xb[1]))" # should be Array{Array{Float32,2},1}
-    @info "typeof(Y1) = $(typeof(Yb[1]))" # should be Array{Array{Float32,2},1}
+    @info "#(training batches) = $(length(Xb)), #(dev. batches) = $(length(Xd))"
+    @info "typeof(X1) = $(typeof(Xb[1])), shape(X1) = $(size(Xb[1][1]))" 
+    @info "typeof(Y1) = $(typeof(Yb[1])), shape(Y1) = $(size(Yb[1][1]))" 
     # define a model
     model = Chain(
         GRU(3*length(alphabet), options[:hiddenSize]), 
-        Dense(options[:hiddenSize], length(options[:labels])),
-        softmax
+        GRU(options[:hiddenSize], options[:hiddenSize]÷2),
+        Dense(options[:hiddenSize]÷2, length(options[:labels]))
     )
     @info model
     # compute the loss of the model on a batch
     function loss(Xs, Ys)
-        value = sum(crossentropy(model(Xs[i]), Ys[i]) for i=1:length(Xs))
+        value = sum(logitcrossentropy(model(Xs[i]), Ys[i]) for i=1:length(Xs))
         reset!(model)
         return value
     end
     optimizer = ADAM()
     
     function evalcb() 
-        xs, ys = collect(Xb[1]), collect(Yb[1])
-        a = evaluate(model, xs, ys)
-        @info "loss = $(loss(dataset[1]...)), accuracy = $a"
+        @info "loss = $(loss(dataset[1]...))"
     end
     @epochs options[:numEpochs] Flux.train!(loss, params(model), dataset, optimizer, cb = throttle(evalcb, 60))
     if (options[:gpu])
@@ -225,6 +232,10 @@ function train(options)
     pairs = [evaluate(model, collect(Xb[i]), collect(Yb[i])) for i=1:length(Xb)]
     result = reduce(((a, b), (c, d)) -> (a + c, b + d), pairs)
     @info "training accuracy = $(result[2]/result[1]) [$(result[2])/$(result[1])]."
+    # evaluate the dev. accuracy of the model
+    pairs_dev = [evaluate(model, collect(Xd[i]), collect(Yd[i])) for i=1:length(Xd)]
+    result = reduce(((a, b), (c, d)) -> (a + c, b + d), pairs_dev)
+    @info "development accuracy = $(result[2]/result[1]) [$(result[2])/$(result[1])]."    
     return model
 end
 

@@ -42,3 +42,18 @@ optionsVLSP = Dict{Symbol,Any}(
     :gpu => false,
     :verbose => false
 )
+
+# Vietnamese UD treebank (training split)
+optionsVUD = Dict{Symbol,Any}(
+    :hiddenSize => 128,
+    :maxSequenceLength => 40,
+    :numEpochs => 40,
+    :batchSize => 32, 
+    :labels => [:n, :s, :r, :i, :d, :P], # :p is the padding symbol
+    :inputPath => string(pwd(), "/dat/vsc/vi_vtb-ud-train.txt.inp"),
+    :outputPath => string(pwd(), "/dat/vsc/vi_vtb-ud-train.txt.out"),
+    :modelPath => string(pwd(), "/dat/vsc/vud.bson"),
+    :alphabetPath => string(pwd(), "/dat/vsc/vud.alphabet"),
+    :gpu => false,
+    :verbose => false
+)
