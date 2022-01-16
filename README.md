@@ -2,12 +2,13 @@
 
 This software package implements some fundamental NLP tasks in the Julia programming language. Tasks which have been implemented so far include:
 
-- intent detection
 - word segmentation (for Vietnamese)
 - part-of-speech tagging
 - named entity recognition
 - transition-based dependency parsing
 - dependency graph embedding
+- intent detection
+- spelling check
 
 All machine learning models are based on neural networks, either multi-layer perceptron (MLP) or recurrent neural networks (RNN) with LSTM and GRU variants, or attentional sequence to sequence models. 
 
@@ -323,6 +324,13 @@ Train and evaluate the extended parser:
     using Flux
     ArcEagerParserEx.evaluate(options)
 ```
+
+# Intent Detection
+
+This module provides two neural network based intent detectors. 
+- The first one is in `src/nlu/Intent.jl` which implements a GRU model. The model contains 3 layers: `Embedding -> GRU3 -> Dense`. The custom layer `GRU3` takes a 3-d matrix as input. This model has a training accuracy of about 0.9811 and a test accuracy of about 0.7610 on  a random train/split test of ratios 80/20.
+- The second one is in `src/nlu/IntentBERT.jl` which implements a BERT-based model (English version). The model use BERT to compute a vector for each sentence (by summing over its token vectors, see `BERTify.jl`) before passing to two dense layers. This model has a training accuracy of about 0.8958 and a test accuracy of about 0.7900. The BERT model is about 3% more accurate than the GRU model.
+
 # Vietnamese Spelling Check 
 
 The `src/vsc/Kar.jl` code implements a semi-character RNN (GRU) model that predict 
@@ -341,4 +349,3 @@ To generate training data, use the function `Mutate.generate(path)`. The input `
 each line contains a sentence. The output will be `path.inp` which is a text file of two times more 
 lines than the input file. This file is used as input to 
 the `Kar` program. 
-
