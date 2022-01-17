@@ -117,7 +117,9 @@ function predict(model, sentence::Array{String}, alphabet::Array{Char})::Array{S
 end
 
 function predict(model, sentence::String, alphabet::Array{Char})::Array{Symbol}
-   predict(model, String.(split(sentence)), alphabet)
+    s = String.(split(sentence))
+    z = predict(model, copy(s), alphabet)
+    collect(zip(s, z[1:length(s)]))
 end
 
 """

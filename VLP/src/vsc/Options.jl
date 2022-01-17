@@ -57,3 +57,18 @@ optionsVUD = Dict{Symbol,Any}(
     :gpu => false,
     :verbose => false
 )
+
+# Finance corpus
+optionsFinance = Dict{Symbol,Any}(
+    :hiddenSize => 128,
+    :maxSequenceLength => 40,
+    :numEpochs => 40,
+    :batchSize => 64, 
+    :labels => [:n, :s, :r, :i, :d, :P], # :p is the padding symbol
+    :inputPath => string(pwd(), "/dat/vsc/finance.txt.inp"),
+    :outputPath => string(pwd(), "/dat/vsc/finance.txt.out"),
+    :modelPath => string(pwd(), "/dat/vsc/finance.bson"),
+    :alphabetPath => string(pwd(), "/dat/vsc/finance.alphabet"),
+    :gpu => false,
+    :verbose => false
+)
