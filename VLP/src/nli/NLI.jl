@@ -18,9 +18,9 @@ using .Corpus
 
 options = Dict{Symbol,Any}(
     :batchSize => 32,
-    :hiddenSize => 16,
-    :modelPath => string(pwd(), "/dat/nli/x.bson"),
-    :numEpochs => 20,
+    :hiddenSize => 32,
+    :modelPath => string(pwd(), "/dat/nli/x/032/en.bson"),
+    :numEpochs => 40,
     :numCores => 4,
     :gpu => false
 )
@@ -134,6 +134,11 @@ function train(model)
         model = model |> cpu
     end
     @save options[:modelPath] model
+    # compute test score
+    @info "Extracting BERT representations of the test samples..."
+    @time Xb_test, Yb_test = batch(testDF)
+    c = evaluate(model, Xb_test, Yb_test, options)
+    @info string("test accuracy = ", c)
 end
 
 """
