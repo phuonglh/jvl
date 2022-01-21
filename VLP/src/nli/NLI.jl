@@ -53,6 +53,31 @@ function featurize(sentence1, sentence2)
     return features
 end
 
+"""
+    featurizeAndSave(df, outputPath)
+
+    Pre-compute all BERT representations of the corpus (train./dev./test) and save them into 
+    external files for speed processing.
+"""
+function featurizeAndSave(df, outputPath)
+    xs = zip(df[:, :sentence1], df[:, :sentence2])
+    # take the last hidden state of BERT
+    vs = map(x -> featurize(x[1], x[2])[:, end], xs)
+    # save the vectors to a CSV file
+    file = open(outputPath, "w")
+    for v in vs
+        write(file, join(v, " "))
+        write(file, "\n")
+    end
+    close(file)
+end
+
+function featurizeAndSave()
+    featurizeAndSave(trainDF, string(pwd(), "/dat/nli/x/train.txt"))
+    featurizeAndSave(devDF, string(pwd(), "/dat/nli/x/dev.txt"))
+    featurizeAndSave(testDF, string(pwd(), "/dat/nli/x/test.txt"))
+end
+
 function batch(df, training::Bool=true)
     pairs = zip(df[:, :sentence1], df[:, :sentence2])
     Xs = collect(Iterators.partition(pairs, options[:batchSize]))
