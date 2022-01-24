@@ -5,15 +5,75 @@
 using DataFrames
 using CSV
 using Flux
+using BSON: @save, @load
+using TextAnalysis
+using WordTokenizers
+using Statistics
 
+include("Embedding.jl")
 include("Options.jl")
 
-df = DataFrame(CSV.File("dat/emo/messages_train_ready_for_WS.tsv", header=true))
-ef = df[:, [:essay, :empathy, :distress, :gender, :education, :race, :age, :income]]
+cf = DataFrame(CSV.File("dat/emo/messages_train_ready_for_WS.tsv", header=true))
+df = df[:, [:essay, :empathy, :distress, :gender, :education, :race, :age, :income]]
 
 genders = unique(ef[:, :gender])        # [1, 2, 5]
 educations = unique(ef[:, :education])  # [4, 6, 5, 7, 2, 3]
 races = unique(ef[:, :race])            # [1, 5, 2, 3, 4, 6]
+
+# load AFINN map
+adf = CSV.File("dat/emo/AFINN/AFINN-111.txt", header=false) |> DataFrame
+afinn = Dict(zip(adf[:,1], adf[:,2])) # or use "Pair." instead of "zip"
+
+
+function preprocessDocument(document)
+    d = remove_case!(document)
+    prepare!(d, strip_articles | strip_numbers | strip_html_tags)
+    return d
+end
+
+function spot(df, afinn, outputPath)
+    texts = df[:, :essay]
+    tokenized = map(text -> tokenize(lowercase(text)), texts)
+    selection = map(tokens -> filter(token -> token ∈ keys(afinn), tokens), tokenized)
+    open(outputPath, "w") do file
+        ss = map(tokens -> join(tokens, " "), selection)
+        write(file, join(ss, "\n"))
+        write(file, "\n")
+    end
+end
+
+# create a corpus containing the texts, lower case the texts
+# texts = df[:, :essay]
+# documents = map(text -> preprocessDocument(StringDocument(text)), texts)
+# corpus = Corpus(documents)
+# # build the lexicon from this corpus
+# update_lexicon!(corpus)
+# lexiconWASA = lexicon(corpus)
+
+# create a lexicon containing words that appear in the AFINN lexicon
+document = FileDocument("dat/emo/EMP/afinn_train.txt")
+corpus = Corpus([document])
+update_lexicon!(corpus)
+lexiconAFINN = lexicon(corpus) # 1,149 entries
+
+
+"""
+    preprocess(t)
+
+    Pre-process input features.
+"""
+function preprocess(t::NamedTuple)
+    tokens = tokenize(lowercase(t[:essay]))
+    afinnTokens = filter(token -> token ∈ keys(lexiconAFINN), tokens)
+    u = map(token -> lexiconAFINN[token], afinnTokens)
+    if isempty(u)
+        u = [ 1 ]
+    end
+    x = [t[:gender], t[:education], t[:race], t[:age]/10, t[:income]/10_000]
+    v = vcat(Flux.onehot(x[1], genders), Flux.onehot(x[2], educations), Flux.onehot(x[3], races), x[4], x[5])
+    # return a pair of input vectors
+    (u, Float32.(v))
+end
 
 """
     createBatches(df)
@@ -22,34 +82,67 @@ races = unique(ef[:, :race])            # [1, 5, 2, 3, 4, 6]
     X is of shape (17 x batchSize), and each output matrix Y of shape (2 x batchSize).
 """
 function createBatches(df)
-    function preprocess(t::NamedTuple)
-        x = [t[:gender], t[:education], t[:race], t[:age]/10, t[:income]/10_000]
-        f = vcat(Flux.onehot(x[1], genders), Flux.onehot(x[2], educations), Flux.onehot(x[3], races), x[4], x[5])
-        Float32.(f)
-    end
     namedTuples = Tables.rowtable(df)
     as = map(t -> (preprocess(t), Float32.([t[:empathy], t[:distress]])), namedTuples)
     bs = Flux.Data.DataLoader(as, batchsize = options[:batchSize])
-    Xs = map(b -> Flux.stack(map(p -> p[1], b), 2), bs)
+    # Xs = map(b -> Flux.stack(map(p -> p[1], b), 2), bs)
+    # Ys = map(b -> Flux.stack(map(p -> p[2], b), 2), bs)
+    Xs = map(b -> map(p -> p[1], b), bs)
     Ys = map(b -> Flux.stack(map(p -> p[2], b), 2), bs)
     (Xs, Ys)
 end
 
 function createModel()
     Chain(
-        Dense(17, options[:hiddenSize], relu),
+        Join(
+            Embedding(length(lexiconAFINN), options[:afinnSize]),
+            identity,
+        ),
+        Dense(17 + options[:afinnSize], options[:hiddenSize], relu),
         Dense(options[:hiddenSize], 2)
     )
 end
 
+"""
+    train(df)
+
+    Trains the model on a data frame and returns a model.
+"""
 function train(df)
-    m = createModel()
-    loss(X, Y) = Flux.Losses.mse(m(X), Y)
-    ps = Flux.params(m)
+    model = createModel()
+    @info sum(model[1].first.W)
+    loss(X, Y) = Flux.Losses.mse(model(X), Y)
+    ps = Flux.params(model)
     Xs, Ys = createBatches(df)
     data = zip(Xs, Ys)
     optimizer = ADAM(options[:α])
     cbf() = @show(sum(loss(X, Y) for (X, Y) in data))
     Flux.@epochs options[:numEpochs] Flux.train!(loss, ps, data, optimizer, cb = Flux.throttle(cbf, 5))
-    m
+    @save options[:modelPath] model
+    @info sum(model[1].first.W)
+    return model
 end
+
+"""
+    predict(df, model, outputPath)
+
+    Predicts an input df and writes results to an external file. The input df 
+    is pre-processed and batched before being fed to a model.
+"""
+function predict(df, model, outputPath)
+    namedTuples = Tables.rowtable(df)
+    as = map(t -> (preprocess(t),), namedTuples) # create a tuple with empty second elements
+    bs = Flux.Data.DataLoader(as, batchsize = options[:batchSize])
+    Xs = map(b -> map(p -> p[1], b), bs)
+    Zs = map(X -> model(X), Xs)
+    toString(Z) = begin
+        ss = [join(Z[:,j], "\t") for j=1:size(Z,2)]
+        join(ss, "\n")
+    end
+    open(outputPath, "w") do file
+        ss = map(Z -> toString(Z), Zs)
+        write(file, join(ss, "\n"))
+        write(file, "\n")
+    end
+end
+
