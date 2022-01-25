@@ -9,13 +9,22 @@ using BSON: @save, @load
 using TextAnalysis
 using WordTokenizers
 using Statistics
+using Plots; # plotly()
 
 include("Embedding.jl")
 include("Options.jl")
 
+# training data
 cf = DataFrame(CSV.File("dat/emo/messages_train_ready_for_WS.tsv", header=true))
-df = df[:, [:essay, :empathy, :distress, :gender, :education, :race, :age, :income]]
+df = cf[:, [:essay, :empathy, :distress, :gender, :education, :race, :age, :income]]
+# dev. data
+cfd = DataFrame(CSV.File("dat/emo/messages_dev_features_ready_for_WS_2022.tsv", header=true))
+dfd = cfd[:, [:essay, :gender, :education, :race, :age, :income]]
+efd = DataFrame(CSV.File("dat/emo/goldstandard_dev_2022.tsv", header=false))
+dfd[:, :empathy] = efd[:, 1]
+dfd[:, :distress] = efd[:, 2]
 
+# 
 genders = unique(ef[:, :gender])        # [1, 2, 5]
 educations = unique(ef[:, :education])  # [4, 6, 5, 7, 2, 3]
 races = unique(ef[:, :race])            # [1, 5, 2, 3, 4, 6]
@@ -104,23 +113,31 @@ function createModel()
 end
 
 """
-    train(df)
+    train(df, dfd)
 
-    Trains the model on a data frame and returns a model.
+    Trains the model on a training data frame and a development data frame, returns a model.
 """
-function train(df)
+function train(df, dfd)
     model = createModel()
     @info sum(model[1].first.W)
     loss(X, Y) = Flux.Losses.mse(model(X), Y)
     ps = Flux.params(model)
     Xs, Ys = createBatches(df)
+    Xsd, Ysd = createBatches(dfd)
     data = zip(Xs, Ys)
+    datad = zip(Xsd, Ysd)
     optimizer = ADAM(options[:α])
-    cbf() = @show(sum(loss(X, Y) for (X, Y) in data))
+    Js = []
+    cbf() = begin
+        γ = mean(loss(X, Y) for (X, Y) in data)  # training loss
+        ζ = mean(loss(X, Y) for (X, Y) in datad) # dev. loss
+        @show(γ, ζ) 
+        push!(Js, (γ, ζ))
+    end
     Flux.@epochs options[:numEpochs] Flux.train!(loss, ps, data, optimizer, cb = Flux.throttle(cbf, 5))
     @save options[:modelPath] model
     @info sum(model[1].first.W)
-    return model
+    return model, Js
 end
 
 """
@@ -146,3 +163,11 @@ function predict(df, model, outputPath)
     end
 end
 
+function main()
+    model, Js = train(df, dfd)
+    n = length(Js)
+    J = hcat(map(p -> p[1], Js), map(p -> p[2], Js))
+    plot(1:n, J, label=["train" "dev."], lw=2, xlabel="epoch", ylabel="loss")
+    predict(df, model, "dat/emo/EMP/res/predictions_EMP.tsv")
+    predict(dfd, model, "dat/emo/EMP/res/predictions_EMP_d.tsv")
+end
