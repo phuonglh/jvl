@@ -12,14 +12,15 @@ using Flux
 using Flux: @epochs
 using BSON: @save, @load
 using FLoops
+using DelimitedFiles
 
 include("Corpus.jl")
 using .Corpus
 
 options = Dict{Symbol,Any}(
     :batchSize => 32,
-    :hiddenSize => 32,
-    :modelPath => string(pwd(), "/dat/nli/x/032/en.bson"),
+    :hiddenSize => 256,
+    :modelPath => string(pwd(), "/dat/nli/x/256/en.bson"),
     :numEpochs => 40,
     :numCores => 4,
     :gpu => false
@@ -78,6 +79,11 @@ function featurizeAndSave()
     featurizeAndSave(testDF, string(pwd(), "/dat/nli/x/test.txt"))
 end
 
+"""
+    batch(df, training)
+
+    Extracts BERT representations of samples in a given df and creates batches.
+"""
 function batch(df, training::Bool=true)
     pairs = zip(df[:, :sentence1], df[:, :sentence2])
     Xs = collect(Iterators.partition(pairs, options[:batchSize]))
@@ -99,14 +105,23 @@ function batch(df, training::Bool=true)
     end
 end
 
-# define a neural network of two layers for classification
-model = Chain(Dense(768, options[:hiddenSize]), Dense(options[:hiddenSize], 3))
+function batchVectors(df, source, training::Bool=true)
+    A = readdlm(source)
+    as = [A[i,:] for i=1:size(A,1)]
+    Xs = collect(Iterators.partition(as, options[:batchSize]))
+    Xb = map(xs -> hcat(xs...), Xs)
+    if training
+        labels = df[:, :label]
+        ys = collect(Iterators.partition(labels, options[:batchSize]))
+        # each batch of labels is transformed into an onehot matrix of shape (3 x batchSize)
+        Yb = map(y -> Flux.onehotbatch(y, 1:3), ys)
+        return Xb, Yb
+    else
+        return Xb
+    end
+end
 
-function train(model)
-    @info "Extracting BERT representations of the training samples..."
-    @time Xb, Yb = batch(trainDF)
-    @info "Extracting BERT representations of the development samples..."
-    @time Xb_dev, Yb_dev = batch(devDF)
+function train(model, Xb, Yb, Xb_dev, Yb_dev)
     # the loss function on a batch (X, y)
     function loss(X, Y)
         Ŷ = model(X)
@@ -159,11 +174,6 @@ function train(model)
         model = model |> cpu
     end
     @save options[:modelPath] model
-    # compute test score
-    @info "Extracting BERT representations of the test samples..."
-    @time Xb_test, Yb_test = batch(testDF)
-    c = evaluate(model, Xb_test, Yb_test, options)
-    @info string("test accuracy = ", c)
 end
 
 """
@@ -189,9 +199,30 @@ end
     Evaluates the accuracy of the classifier on a data frame.
 """
 function evaluate(model, df, options)
-    @info "Extracting BERT representations of the training samples..."
+    @info "Loading BERT representations of the samples..."
     @time Xb, Yb = batch(df)
     evaluate(model, Xb, Yb, options)
+end
+
+function run(options, model)
+    @info "Loading BERT representations of the training samples..."
+    @time Xb, Yb = batchVectors(trainDF, string(pwd(), "/dat/nli/x/train.txt"))
+    @info "Loading BERT representations of the development samples..."
+    @time Xb_dev, Yb_dev = batchVectors(devDF, string(pwd(), "/dat/nli/x/dev.txt"))
+    train(model, Xb, Yb, Xb_dev, Yb_dev)
+
+    # compute test score
+    @info "Loading BERT representations of the test samples..."
+    @time Xb_test, Yb_test = batchVectors(testDF, string(pwd(), "/dat/nli/x/test.txt"))
+    run(options, model, Xb, Yb, Xb_dev, Yb_dev, Xb_test, Yb_test)
+end
+
+function run(options, model, Xb, Yb, Xb_dev, Yb_dev, Xb_test, Yb_test)
+    train(model, Xb, Yb, Xb_dev, Yb_dev)
+    a = evaluate(model, Xb, Yb, options)
+    b = evaluate(model, Xb_dev, Yb_dev, options)
+    c = evaluate(model, Xb_test, Yb_test, options)
+    (a, b, c)
 end
 
 end # module
