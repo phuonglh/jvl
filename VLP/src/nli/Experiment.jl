@@ -13,13 +13,19 @@ hiddenSizes = [16, 32, 64, 128, 256]
 
 file = open("dat/nli/x/scores.txt", "w")
 for hiddenSize in hiddenSizes
+    write(file, string(hiddenSize, "\n"))
     for k=1:3
         NLI.options[:hiddenSize] = hiddenSize
         NLI.options[:modelPath] = string(pwd(), "/dat/nli/x/", hiddenSize, "/en.bson.", k)
         # define a neural network of two layers for classification
-        model = Chain(Dense(768, NLI.options[:hiddenSize]), Dense(NLI.options[:hiddenSize], 3))
+        model = Chain(
+            Dense(768, NLI.options[:hiddenSize]), 
+            Dense(NLI.options[:hiddenSize], NLI.options[:hiddenSizes]), 
+            Dense(NLI.options[:hiddenSize], 3)
+        )
         a, b, c = NLI.run(NLI.options, model, Xb, Yb, Xb_dev, Yb_dev, Xb_test, Yb_test)
         write(file, string(a, " ", b, " ", c, "\n"))
     end
+    flush(file)
 end
 close(file)
