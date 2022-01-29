@@ -33,6 +33,20 @@ races = unique(ef[:, :race])            # [1, 5, 2, 3, 4, 6]
 adf = CSV.File("dat/emo/AFINN/AFINN-111.txt", header=false) |> DataFrame
 afinn = Dict(zip(adf[:,1], adf[:,2])) # or use "Pair." instead of "zip"
 
+# load NRC map
+ndf = CSV.File("dat/emo/NRC/NRC-emotion-lexicon-v0.92/words.txt", header=false) |> DataFrame
+# append a separator to the emotion column
+transform!(ndf, :2 => x -> x .* "|")
+# group by term
+gdf = groupby(ndf, :1)
+# combine emotions for each term
+nrc = combine(gdf, :4 => join)
+emotionsNRC = Dict(
+    "anger" => 1, "fear" => 2, "anticipation" => 3, "trust" => 4, 
+    "surprise" => 5, "sadness" => 6, "joy" => 7, "disgust" => 8, 
+    "negative" => 9, "positive" => 10
+)
+
 
 function preprocessDocument(document)
     d = remove_case!(document)
@@ -40,16 +54,34 @@ function preprocessDocument(document)
     return d
 end
 
-function spot(df, afinn, outputPath)
+"""
+    spotTokens(df, afinn, outputPath)
+
+    Finds AFINN negative-score tokens in the essays of a df. 
+"""
+function spotTokens(df, afinn, outputPath="dat/emo/EMP/afinn_train.txt")
     texts = df[:, :essay]
-    tokenized = map(text -> tokenize(lowercase(text)), texts)
-    selection = map(tokens -> filter(token -> token ∈ keys(afinn), tokens), tokenized)
+    tokenized = map(text -> unique(tokenize(lowercase(text))), texts)
+    selection = map(tokens -> filter(token -> token ∈ keys(afinn) && afinn[token] < 0, tokens), tokenized)
     open(outputPath, "w") do file
         ss = map(tokens -> join(tokens, " "), selection)
         write(file, join(ss, "\n"))
         write(file, "\n")
     end
 end
+
+function spotScores(df, afinn, outputPath)
+    texts = df[:, :essay]
+    tokenized = map(text -> unique(tokenize(lowercase(text))), texts)
+    toScore(tokens) = map(token -> afinn[token], tokens)
+    selection = map(tokens -> toScore(filter(token -> token ∈ keys(afinn), tokens)), tokenized)
+    open(outputPath, "w") do file
+        ss = map(tokens -> join(tokens, " "), selection)
+        write(file, join(ss, "\n"))
+        write(file, "\n")
+    end
+end
+
 
 # create a corpus containing the texts, lower case the texts
 # texts = df[:, :essay]
@@ -60,11 +92,13 @@ end
 # lexiconWASA = lexicon(corpus)
 
 # create a lexicon containing words that appear in the AFINN lexicon
-document = FileDocument("dat/emo/EMP/afinn_train.txt")
-corpus = Corpus([document])
-update_lexicon!(corpus)
-lexiconAFINN = lexicon(corpus) # 1,149 entries
+documentAFINN = FileDocument("dat/emo/EMP/afinn_train.txt")
+corpusAFINN = Corpus([documentAFINN])
+update_lexicon!(corpusAFINN)
+lexiconAFINN = lexicon(corpusAFINN) # 1,149 entries
 
+# create a lexicon containing terms that appear in the NRC lexicon
+lexiconNRC = Dict(zip(nrc[:,1], nrc[:,2]))
 
 """
     preprocess(t)
@@ -73,13 +107,28 @@ lexiconAFINN = lexicon(corpus) # 1,149 entries
 """
 function preprocess(t::NamedTuple)
     tokens = tokenize(lowercase(t[:essay]))
+    # AFINN features
     afinnTokens = filter(token -> token ∈ keys(lexiconAFINN), tokens)
     u = map(token -> lexiconAFINN[token], afinnTokens)
     if isempty(u)
         u = [ 1 ]
     end
+    # NRC features
+    β(token) = begin
+        affects = split(lexiconNRC[token], "|")
+        js = map(affect -> emotionsNRC[affect], affects[1:end-1])
+        vec(sum(Flux.onehotbatch(js, 1:length(emotionsNRC)), dims=2))
+    end
+    nrcTokens = filter(token -> token ∈ keys(lexiconNRC), tokens)
+    ws = map(token -> β(token), nrcTokens)
+    w = if isempty(ws)
+        ws = zeros(length(emotionsNRC))
+    else
+        sum(ws)
+    end
+    # concatenation
     x = [t[:gender], t[:education], t[:race], t[:age]/10, t[:income]/10_000]
-    v = vcat(Flux.onehot(x[1], genders), Flux.onehot(x[2], educations), Flux.onehot(x[3], races), x[4], x[5])
+    v = vcat(Flux.onehot(x[1], genders), Flux.onehot(x[2], educations), Flux.onehot(x[3], races), x[4], x[5], w)
     # return a pair of input vectors
     (u, Float32.(v))
 end
@@ -107,7 +156,7 @@ function createModel()
             Embedding(length(lexiconAFINN), options[:afinnSize]),
             identity,
         ),
-        Dense(17 + options[:afinnSize], options[:hiddenSize], relu),
+        Dense(10 + 17 + options[:afinnSize], options[:hiddenSize], relu),
         Dense(options[:hiddenSize], 2)
     )
 end
