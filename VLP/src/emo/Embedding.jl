@@ -36,7 +36,7 @@ Flux.@functor Embedding
 Base.length(e::Embedding) = length(e.W)
 
 
-## Join two layers.
+## Join two layers. The first layer is an embedding layer. 
 
 struct Join
     first
@@ -68,4 +68,41 @@ function (g::Join)(xs::Vector{Tuple{Vector{Int},Vector{Float32}}})
 end
 
 Flux.@functor Join
+
+# JoinR
+# Apply a RNN to a sequence of token ids and then extract sequence presentation
+# before joining them.
+
+struct JoinR
+    first
+    second
+    rnn
+end
+
+JoinR(fs...) = JoinR(fs[1], fs[2])
+
+"""
+    a: token ids
+    b: real-valued features
+"""
+function (g::JoinR)(x::Tuple{Vector{Int},Vector{Float32}})
+    a, b = x
+    as = g.first(a) # token embeddings
+    Flux.reset!(rnn) # reset for next input
+    u = g.rnn(as)[:,end] # apply RNN and extract the last state
+    v = g.second(b)
+    vcat(u, v)
+end
+
+function (g::JoinR)(x::SubArray)
+    g(x[1])
+end
+
+# batch application
+function (g::JoinR)(xs::Vector{Tuple{Vector{Int},Vector{Float32}}})
+    zs = [g(x) for x ∈ xs]
+    hcat(zs...)
+end
+
+Flux.@functor JoinR
 

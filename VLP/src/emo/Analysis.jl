@@ -16,18 +16,19 @@ include("Options.jl")
 
 # training data
 cf = DataFrame(CSV.File("dat/emo/messages_train_ready_for_WS.tsv", header=true))
-df = cf[:, [:essay, :empathy, :distress, :gender, :education, :race, :age, :income]]
+df = cf[:, [:essay, :empathy, :distress, :emotion, :gender, :education, :race, :age, :income]]
 # dev. data
 cfd = DataFrame(CSV.File("dat/emo/messages_dev_features_ready_for_WS_2022.tsv", header=true))
 dfd = cfd[:, [:essay, :gender, :education, :race, :age, :income]]
 efd = DataFrame(CSV.File("dat/emo/goldstandard_dev_2022.tsv", header=false))
 dfd[:, :empathy] = efd[:, 1]
 dfd[:, :distress] = efd[:, 2]
+dfd[:, :emotion] = efd[:, 3]
 
 # 
-genders = unique(ef[:, :gender])        # [1, 2, 5]
-educations = unique(ef[:, :education])  # [4, 6, 5, 7, 2, 3]
-races = unique(ef[:, :race])            # [1, 5, 2, 3, 4, 6]
+genders = unique(df[:, :gender])        # [1, 2, 5]
+educations = unique(df[:, :education])  # [4, 6, 5, 7, 2, 3]
+races = unique(df[:, :race])            # [1, 5, 2, 3, 4, 6]
 
 # load AFINN map
 adf = CSV.File("dat/emo/AFINN/AFINN-111.txt", header=false) |> DataFrame
@@ -113,10 +114,15 @@ function preprocess(t::NamedTuple)
     if isempty(u)
         u = [ 1 ]
     end
+    # make the u vector the same length for the back-propagation of recurrent layers to work
+    # only need in the JoinR model
+    maxLen = options[:maxSequenceLength]
+    u = if length(u) <= maxLen vcat(u, fill(1, maxLen-length(u))) else u[1:maxLen] end
+
     # NRC features
     β(token) = begin
         affects = split(lexiconNRC[token], "|")
-        js = map(affect -> emotionsNRC[affect], affects[1:end-1])
+        js = map(affect -> emotionsNRC[affect], affects[1:end-1]) # end-1 since there is a | at the end.
         vec(sum(Flux.onehotbatch(js, 1:length(emotionsNRC)), dims=2))
     end
     nrcTokens = filter(token -> token ∈ keys(lexiconNRC), tokens)
@@ -129,7 +135,8 @@ function preprocess(t::NamedTuple)
     # concatenation
     x = [t[:gender], t[:education], t[:race], t[:age]/10, t[:income]/10_000]
     v = vcat(Flux.onehot(x[1], genders), Flux.onehot(x[2], educations), Flux.onehot(x[3], races), x[4], x[5], w)
-    # return a pair of input vectors
+    # return a pair of input vectors: 
+    # u is the AFINN-token vector; v is the real-valued vector concatenated with the NRC vector
     (u, Float32.(v))
 end
 
@@ -151,12 +158,21 @@ function createBatches(df)
 end
 
 function createModel()
+    # Chain(
+    #     Join(
+    #         Embedding(length(lexiconAFINN), options[:afinnSize]),
+    #         identity,
+    #     ),
+    #     Dense(10 + 17 + options[:afinnSize], options[:hiddenSize], relu),
+    #     Dense(options[:hiddenSize], 2)
+    # )
     Chain(
-        Join(
-            Embedding(length(lexiconAFINN), options[:afinnSize]),
+        JoinR(
+            Embedding(length(lexiconAFINN), options[:afinnSize]),            
             identity,
+            GRU(options[:afinnSize], options[:recurrentSize])
         ),
-        Dense(10 + 17 + options[:afinnSize], options[:hiddenSize], relu),
+        Dense(10 + 17 + options[:recurrentSize], options[:hiddenSize], relu),
         Dense(options[:hiddenSize], 2)
     )
 end
@@ -219,4 +235,10 @@ function main()
     plot(1:n, J, label=["train" "dev."], lw=2, xlabel="epoch", ylabel="loss")
     predict(df, model, "dat/emo/EMP/res/predictions_EMP.tsv")
     predict(dfd, model, "dat/emo/EMP/res/predictions_EMP_d.tsv")
+end
+
+
+function emotionStatistic()
+    gdf = groupby(df, :emotion)
+    st = combine(gdf, nrow) # emotion histogram
 end
