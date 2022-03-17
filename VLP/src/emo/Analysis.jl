@@ -8,6 +8,7 @@ using Flux
 using BSON: @save, @load
 using TextAnalysis
 using WordTokenizers
+using Languages
 using Statistics
 using Plots; # plotly()
 
@@ -24,6 +25,9 @@ efd = DataFrame(CSV.File("dat/emo/goldstandard_dev_2022.tsv", header=false))
 dfd[:, :empathy] = efd[:, 1]
 dfd[:, :distress] = efd[:, 2]
 dfd[:, :emotion] = efd[:, 3]
+# test data
+cft = DataFrame(CSV.File("dat/emo/messages_test_features_ready_for_WS_2022.tsv", header=true))
+dft = cft[:, [:essay, :gender, :education, :race, :age, :income]]
 
 # 
 genders = unique(df[:, :gender])        # [1, 2, 5]
@@ -48,11 +52,12 @@ emotionsNRC = Dict(
     "negative" => 9, "positive" => 10
 )
 
-
 function preprocessDocument(document)
-    d = remove_case!(document)
-    prepare!(d, strip_articles | strip_numbers | strip_html_tags)
-    return d
+    # lowercase and strip some tokens/punctuations
+    remove_case!(document)
+    prepare!(document, strip_stopwords | strip_articles | strip_numbers | strip_html_tags | strip_punctuation | strip_pronouns)
+    stem!(document)
+    return document
 end
 
 """
@@ -85,18 +90,39 @@ end
 
 
 # create a corpus containing the texts, lower case the texts
-# texts = df[:, :essay]
-# documents = map(text -> preprocessDocument(StringDocument(text)), texts)
-# corpus = Corpus(documents)
-# # build the lexicon from this corpus
-# update_lexicon!(corpus)
-# lexiconWASA = lexicon(corpus)
+texts = df[:, :essay]
+documents = map(text -> preprocessDocument(StringDocument(text)), texts)
+corpus = Corpus(documents)
+# build the lexicon from this corpus
+update_lexicon!(corpus)
+# prune rare terms in the lexicon
+for term in keys(corpus.lexicon)
+    freq = corpus.lexicon[term]
+    if freq <= options[:minFrequency] || freq >= options[:maxFrequency]
+        delete!(corpus.lexicon, term)
+    end
+end
+# create token map
+mapTokens = Dict(term => i for (i, term) in enumerate(keys(corpus.lexicon)))
+
+# # compute tf-idf matrix
+# M = DocumentTermMatrix(corpus)
+# tfidf = tf_idf(M)
+# d = size(tfidf,2) # domain dimension
 
 # create a lexicon containing words that appear in the AFINN lexicon
 documentAFINN = FileDocument("dat/emo/EMP/afinn_train.txt")
 corpusAFINN = Corpus([documentAFINN])
 update_lexicon!(corpusAFINN)
-lexiconAFINN = lexicon(corpusAFINN) # 1,149 entries
+# prune rare terms in the lexicon
+for term in keys(corpusAFINN.lexicon)
+    freq = corpusAFINN.lexicon[term]
+    if freq < 2 || freq > 80
+        delete!(corpusAFINN.lexicon, term)
+    end
+end # ==> 490 entries kept with cutoff threshold = 2
+# create AFINN map
+mapAFINN = Dict(term => i for (i, term) in enumerate(keys(lexiconAFINN)))
 
 # create a lexicon containing terms that appear in the NRC lexicon
 lexiconNRC = Dict(zip(nrc[:,1], nrc[:,2]))
@@ -104,18 +130,26 @@ lexiconNRC = Dict(zip(nrc[:,1], nrc[:,2]))
 """
     preprocess(t)
 
-    Pre-process input features.
+    Compute features of a given sample, where `t` is a row (named tuple).
 """
 function preprocess(t::NamedTuple)
     tokens = tokenize(lowercase(t[:essay]))
     # AFINN features
-    afinnTokens = filter(token -> token ∈ keys(lexiconAFINN), tokens)
-    u = map(token -> lexiconAFINN[token], afinnTokens)
+    afinnTokens = filter(token -> token ∈ keys(mapAFINN), tokens)
+    u = map(token -> mapAFINN[token], afinnTokens)
     if isempty(u)
-        u = [ 1 ]
+        u = [ length(mapAFINN)+1 ] # UNK token
     end
+
+    # # Token features
+    # selectedTokens = filter(token -> token ∈ keys(mapTokens), tokens)
+    # u = map(token -> mapTokens[token], selectedTokens)
+    # if isempty(u)
+    #     u = [ length(mapTokens)+1 ] # UNK token
+    # end
+
     # make the u vector the same length for the back-propagation of recurrent layers to work
-    # only need in the JoinR model
+    # only required by the JoinR model
     maxLen = options[:maxSequenceLength]
     u = if length(u) <= maxLen vcat(u, fill(1, maxLen-length(u))) else u[1:maxLen] end
 
@@ -132,11 +166,15 @@ function preprocess(t::NamedTuple)
     else
         sum(ws)
     end
+
     # concatenation
-    x = [t[:gender], t[:education], t[:race], t[:age]/10, t[:income]/10_000]
-    v = vcat(Flux.onehot(x[1], genders), Flux.onehot(x[2], educations), Flux.onehot(x[3], races), x[4], x[5], w)
+    # x = [t[:gender], t[:education], t[:race], t[:age]/10, t[:income]/10_000]
+    # v = vcat(Flux.onehot(x[1], genders), Flux.onehot(x[2], educations), Flux.onehot(x[3], races), x[4], x[5], w)
+    x = [t[:gender], t[:education], t[:race]]
+    v = vcat(Flux.onehot(x[1], genders), Flux.onehot(x[2], educations), Flux.onehot(x[3], races), w)
     # return a pair of input vectors: 
-    # u is the AFINN-token vector; v is the real-valued vector concatenated with the NRC vector
+        # u is the AFINN-token vector; 
+        # v is the real-valued vector concatenated with the NRC vector
     (u, Float32.(v))
 end
 
@@ -158,7 +196,7 @@ function createBatches(df)
 end
 
 function createModel()
-    # Chain(
+    # 1. Chain(
     #     Join(
     #         Embedding(length(lexiconAFINN), options[:afinnSize]),
     #         identity,
@@ -166,13 +204,23 @@ function createModel()
     #     Dense(10 + 17 + options[:afinnSize], options[:hiddenSize], relu),
     #     Dense(options[:hiddenSize], 2)
     # )
+    # 2. Chain(
+    #     JoinR(
+    #         Embedding(length(lexiconAFINN), options[:afinnSize]),            
+    #         identity,
+    #         GRU(options[:afinnSize], options[:recurrentSize])
+    #     ),
+    #     Dense(10 + 17 + options[:recurrentSize], options[:hiddenSize], relu),
+    #     Dense(options[:hiddenSize], 2)
+    # )
     Chain(
         JoinR(
-            Embedding(length(lexiconAFINN), options[:afinnSize]),            
+            Embedding(length(mapAFINN) + 1, options[:afinnSize]),
+            #Embedding(length(mapTokens) + 1, options[:afinnSize]),
             identity,
             GRU(options[:afinnSize], options[:recurrentSize])
         ),
-        Dense(10 + 17 + options[:recurrentSize], options[:hiddenSize], relu),
+        Dense(10 + 15 + options[:recurrentSize], options[:hiddenSize], relu),
         Dense(options[:hiddenSize], 2)
     )
 end
@@ -229,12 +277,17 @@ function predict(df, model, outputPath)
 end
 
 function main()
+    @info options
     model, Js = train(df, dfd)
-    n = length(Js)
-    J = hcat(map(p -> p[1], Js), map(p -> p[2], Js))
-    plot(1:n, J, label=["train" "dev."], lw=2, xlabel="epoch", ylabel="loss")
-    predict(df, model, "dat/emo/EMP/res/predictions_EMP.tsv")
+    predict(df, model, "dat/emo/EMP/res/predictions_EMP_t.tsv")
     predict(dfd, model, "dat/emo/EMP/res/predictions_EMP_d.tsv")
+    predict(dft, model, "dat/emo/EMP/res/predictions_EMP.tsv")
+    return model, Js
+end
+
+function visualize(Js)
+    J = hcat(map(p -> p[1], Js), map(p -> p[2], Js))
+    plot(10:length(Js), J[10:end,:], label=["train" "dev."], lw=2, xlabel="epoch", ylabel="loss")
 end
 
 

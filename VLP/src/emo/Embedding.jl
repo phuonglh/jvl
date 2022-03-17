@@ -88,7 +88,7 @@ JoinR(fs...) = JoinR(fs[1], fs[2])
 function (g::JoinR)(x::Tuple{Vector{Int},Vector{Float32}})
     a, b = x
     as = g.first(a) # token embeddings
-    Flux.reset!(rnn) # reset for next input
+    Flux.reset!(g.rnn) # reset for next input
     u = g.rnn(as)[:,end] # apply RNN and extract the last state
     v = g.second(b)
     vcat(u, v)
