@@ -347,5 +347,4 @@ To train a `Kar` model with some options, simply run `Kar.train(Kar.options)`.
 
 To generate training data, use the function `Mutate.generate(path)`. The input `path` is a text file, 
 each line contains a sentence. The output will be `path.inp` which is a text file of two times more 
-lines than the input file. This file is used as input to 
-the `Kar` program. 
+lines than the input file. This file is used as input to the `Kar` program. 
