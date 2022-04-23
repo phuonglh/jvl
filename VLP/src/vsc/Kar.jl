@@ -84,7 +84,7 @@ end
 """
     batch(sentences, alphabet, mutations, training::Bool=true)
 
-    Create batches of data for training.
+    Create batches of data for training or prediction.
 """
 function batch(sentences::Array{Array{String,1}}, alphabet::Array{Char,1}, mutations::Array{Array{Symbol,1}}, training::Bool=true)
     if (training)
@@ -105,7 +105,7 @@ end
 """
     predict(model, sentence, alphabet)
 
-    Predict a mutated sentence.
+    Predict a mutated sentence in the form of an array of syllables.
 """
 function predict(model, sentence::Array{String}, alphabet::Array{Char})::Array{Symbol}
     # reset the state of the model before applying on an input sample
@@ -116,6 +116,11 @@ function predict(model, sentence::Array{String}, alphabet::Array{Char})::Array{S
     map(e -> options[:labels][e], y)
 end
 
+"""
+    predict(model, sentence, alphabet)
+
+    Predict a mutated sentence in the form of a string.
+"""
 function predict(model, sentence::String, alphabet::Array{Char})::Array{Symbol}
     s = String.(split(sentence))
     z = predict(model, copy(s), alphabet)
@@ -225,7 +230,7 @@ function train(options)
     function evalcb() 
         @info "loss = $(loss(dataset[1]...))"
     end
-    @epochs options[:numEpochs] Flux.train!(loss, params(model), dataset, optimizer, cb = throttle(evalcb, 60))
+    @epochs options[:numEpochs] Flux.train!(loss, Flux.params(model), dataset, optimizer, cb = throttle(evalcb, 60))
     if (options[:gpu])
         model = model |> cpu
     end
