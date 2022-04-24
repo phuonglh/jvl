@@ -16,8 +16,8 @@ include("Options.jl")
 """
 function readData(options)
     lines = readlines(options[:inputPath])
-    sentences = Array{Array{String,1},1}()
-    mutations = Array{Array{Symbol,1},1}()
+    sentences = Vector{Vector{String}}()
+    mutations = Vector{Vector{Symbol}}()
     i = 1
     while i < length(lines)
         y = map(a -> Symbol(a), split(lines[i], " "))
@@ -37,9 +37,9 @@ end
   a label set for training. Return a pair of matrix `(x, y)` where
   `x` is a matrix of size `(3*|alphabet|) x n`, where `n` is the number of tokens of the input sentence.
 """
-function vectorize(tokens::Array{String}, alphabet::Array{Char}, mutations::Array{Symbol}, training::Bool=true)
+function vectorize(tokens::Vector{String}, alphabet::Vector{Char}, mutations::Vector{Symbol}, training::Bool=true)
     # Compute a bag-of-character vector for middle characters of a token, that is token[2:end-1].
-    function boc(token::String, alphabet::Array{Char})
+    function boc(token::String, alphabet::Vector{Char})
         u, v = nextind(token, 1), prevind(token, lastindex(token))
         subtoken = token[u:v]
         if (!isempty(subtoken))
@@ -86,7 +86,7 @@ end
 
     Create batches of data for training or prediction.
 """
-function batch(sentences::Array{Array{String,1}}, alphabet::Array{Char,1}, mutations::Array{Array{Symbol,1}}, training::Bool=true)
+function batch(sentences::Vector{Vector{String}}, alphabet::Vector{Char}, mutations::Vector{Vector{Symbol}}, training::Bool=true)
     if (training)
         pairs = [vectorize(sentences[i], alphabet, mutations[i]) for i=1:length(sentences)]
         Xs = map(p -> p[1], pairs)
@@ -107,10 +107,11 @@ end
 
     Predict a mutated sentence in the form of an array of syllables.
 """
-function predict(model, sentence::Array{String}, alphabet::Array{Char})::Array{Symbol}
+function predict(model, sentence::Vector{String}, alphabet::Vector{Char})::Vector{Symbol}
     # reset the state of the model before applying on an input sample
     reset!(model) 
     # vectorize the input sentence using a dummy label sequence (not used)
+    # the vectorization trancates or expands the sequence
     x = vectorize(sentence, alphabet, fill(:P, length(sentence)))
     y = onecold(model(x[1]))
     map(e -> options[:labels][e], y)
@@ -121,10 +122,11 @@ end
 
     Predict a mutated sentence in the form of a string.
 """
-function predict(model, sentence::String, alphabet::Array{Char})::Array{Symbol}
+function predict(model, sentence::String, alphabet::Vector{Char})::Vector{Symbol}
     s = String.(split(sentence))
     z = predict(model, copy(s), alphabet)
-    collect(zip(s, z[1:length(s)]))
+    n = min(length(s), options[:maxSequenceLength])
+    collect(zip(s, z[1:n]))
 end
 
 """
@@ -133,16 +135,17 @@ end
     Predict a list of sentences, collect prediction result and report prediction accuracy
     xs: mutated sentences; ys: correct mutation labels
 """
-function evaluate(model, xs::Array{Array{String,1}}, alphabet::Array{Char}, ys::Array{Array{Symbol,1}})
+function evaluate(model, xs::Vector{Vector{String}}, alphabet::Vector{Char}, ys::Vector{Vector{Symbol}})
     zs = map(s -> predict(model, s, alphabet), xs)
     oui = Dict{Symbol,Int}() # number of correct predictions for each label
     non = Dict{Symbol,Int}() # number of incorrect predictions for each label
     foreach(k -> oui[k] = 0, options[:labels])
     foreach(k -> non[k] = 0, options[:labels])
-    for i = 1:length(ys)    
-        y, z = ys[i], zs[i]
+    for i = 1:length(ys)
+        n = min(length(ys[i]), options[:maxSequenceLength])
+        y, z = ys[i][1:n], zs[i]
         zyDiff = (z .== y)
-        for i = 1:length(y)
+        for i = 1:n
             k = y[i]
             if (zyDiff[i])
                 oui[k] = oui[k] + 1
@@ -166,7 +169,7 @@ end
     Evaluates the accuracy of a mini-batch, return the total labels in the batch and the number of correctly predicted labels.
     This function is used in training for performance update.
 """
-function evaluate(model, xs::Array{Array{Float32,2}}, ys::Array{Array{Float32,2}})::Tuple{Int,Int}
+function evaluate(model, xs::Vector{Matrix{Float32}}, ys::Vector{Matrix{Float32}})::Tuple{Int,Int}
     as = map(x -> onecold(model(x)), xs)
     bs = map(y -> onecold(y), ys)
     # find the real length of target sequence (without padding symbol :P)
