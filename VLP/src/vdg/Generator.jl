@@ -1,7 +1,7 @@
 # An implementation of Vietnamese diacritics generation in Julia
-# (C) phuonglh@gmail.com, 2021
+# (C) phuonglh@gmail.com
 
-module VDG
+#module VDG
 
 using Flux
 using Flux: @epochs
@@ -19,20 +19,31 @@ include("Utils.jl")
 include("BiRNN.jl")
 
 options = Dict{Symbol,Any}(
-    :sampleSize => 8_000,
+    :sampleSize => 4_000,
     :dataPath => string(pwd(), "/dat/vdg/010K.txt"),
     :alphabetPath => string(pwd(), "/dat/vdg/alphabet.txt"),
     :modelPath => string(pwd(), "/dat/vdg/vdg.bson"),
     :maxSequenceLength => 64,
     :batchSize => 32,
     :numEpochs => 50,
-    :unkChar => 'S',
-    :padChar => 'P',
+    :padX => 'P',
+    :padY => 'Q',
+    :consonant => 'S',
     :gpu => false,
     :hiddenSize => 128,
     :split => [0.8, 0.2],
     :η => 1E-3 # learning rate for Adam optimizer
 )
+
+# define the label set
+labelSet = union(keys(charMap), values(charMap), [options[:padY], options[:consonant]])
+labelVec = unique(labelSet)
+padIdxY  = findall(c -> c == options[:padY], labelVec)
+labelMap = Dict{Char,Int}(c => i for (i, c) in enumerate(labelVec))
+
+function transform(text::String)::String
+    map(c -> c ∈ labelSet ? c : options[:consonant], text)
+end
 
 """
   vectorize(text, alphabet)
@@ -50,16 +61,18 @@ function vectorize(text::String, alphabet::Array{Char}, training::Bool=true)
     # slice x into subarrays of equal length
     xs = collect(Iterators.partition(x, n))
     # pad the last subarray with the pad character
-    ps = fill(options[:padChar], n - length(xs[end]))
-    xs[end] = vcat(xs[end], ps)
+    px = fill(options[:padX], n - length(xs[end]))
+    xs[end] = vcat(xs[end], px)
     # now all the subarrays in xs are of the same length, 
     # convert them into one-hot matrices of size (|alphabet| x maxSeqLen)
     Xs = map(x -> Float32.(Flux.onehotbatch(x, alphabet)), xs)
     if (training) 
-        # texte = map(c -> c ∈ keys(charMap) ? c : options[:unkChar], text)
-        ys = collect(Iterators.partition(text, n))
-        ys[end] = vcat(ys[end], ps)
-        Ys = map(y -> Float32.(Flux.onehotbatch(y, alphabet)), ys)
+        # ys = collect(Iterators.partition(text, n))
+        texte = transform(text)
+        ys = collect(Iterators.partition(texte, n))
+        py = fill(options[:padY], n - length(ys[end]))
+        ys[end] = vcat(ys[end], py)
+        Ys = map(y -> Float32.(Flux.onehotbatch(y, labelVec)), ys)
         return (Xs, Ys)
     else
         return Xs
@@ -76,13 +89,12 @@ function evaluate(model, Xb, Yb)::Tuple{Int,Int}
     batchSize = length(Xb)
     as = map(X -> Flux.onecold(model(X)), Xb)
     bs = map(Y -> Flux.onecold(Y), Yb)
-    # find the real length of target sequence (without padding symbol of index 1)
-    padding = 1
+    # find the real length of target sequence (without padding symbol)
     total = 0
     correct = 0
     for i = 1:batchSize
         t = options[:maxSequenceLength]
-        while t > 0 && bs[i][t] == padding
+        while t > 0 && bs[i][t] == padIdxY
             t = t - 1
         end
         total = total + t
@@ -99,13 +111,14 @@ function train(options)
     N = min(options[:sampleSize], length(lines))
     @info "N = $(N)"
     ys = map(y -> lowercase(y), lines[1:N])
-    # create and save alphabet index    
-    alphabet = unique(join(ys))
+    xs = map(y -> removeDiacritics(y), ys)
+    # create and save alphabet index
+    alphabet = unique(join(xs))
     sort!(alphabet)
-    prepend!(alphabet, options[:padChar])
+    prepend!(alphabet, options[:padX])
     @info "alphabet = $(join(alphabet))"
-    charIndex = Dict{Char,Int}(c => i for (i, c) in enumerate(alphabet))
-    saveIndex(charIndex, options[:alphabetPath])
+    alphabetIndex = Dict{Char,Int}(c => i for (i, c) in enumerate(alphabet))
+    saveIndex(alphabetIndex, options[:alphabetPath])
 
     # create training sequences
     XYs = map(y -> vectorize(y, alphabet), ys)
@@ -135,7 +148,7 @@ function train(options)
     # define a model
     model = Chain(
         GRU(length(alphabet), options[:hiddenSize]),
-        Dense(options[:hiddenSize], length(alphabet))
+        Dense(options[:hiddenSize], length(labelVec))
     )
     @info model
     # compute the loss of the model on a batch
@@ -143,7 +156,7 @@ function train(options)
         function g(X, Y)
             ys = Flux.onecold(Y)
             t = options[:maxSequenceLength]
-            while (ys[t] == 1) t = t - 1; end
+            while (ys[t] == padIdxY) t = t - 1; end
             Z = model(X)
             return Flux.logitcrossentropy(Z[:,1:t], Y[:,1:t])
         end
@@ -167,7 +180,7 @@ function train(options)
         # @info "loss = $J, test accuracy = $(accuracy_test[end]), training accuracy = $(accuracy_train[end])"
     end
     for _=1:options[:numEpochs]
-        @time Flux.train!(loss, params(model), dataset_train, optimizer, cb = Flux.throttle(evalcb, 60))
+        @time Flux.train!(loss, Flux.params(model), dataset_train, optimizer, cb = Flux.throttle(evalcb, 60))
     end
     if (options[:gpu])
         model = model |> cpu
@@ -185,12 +198,12 @@ function train(options)
     return model, Js
 end
 
-function predict(text::String, model, alphabet::Array{Char}, labelMap::Dict{Int,Char})::String
+function predict(text::String, model, alphabet::Array{Char}, alphabetMap::Dict{Int,Char})::String
     Xs = vectorize(text, alphabet, false)
     zs = map(X -> Flux.onecold(model(X)), Xs)
     cs = map(z -> join(map(i -> labelMap[i], z)), zs)
     texte = collect(join(cs))[1:length(text)]
-    is = findall(c -> c == options[:unkChar], texte)
+    is = findall(c -> c == options[:consonant], texte)
     texte[is] .= collect(text)[is]
     return join(texte)
 end
@@ -213,5 +226,5 @@ function test(text, model, alphabet, alphabetMap)
     @info ws
 end
 
-end # module
+#end # module
 
