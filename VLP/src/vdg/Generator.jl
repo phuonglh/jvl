@@ -164,11 +164,12 @@ function train(options)
     optimizer = ADAM(options[:η])
     
     accuracy_test, accuracy_train = Array{Float64,1}(), Array{Float64,1}()
-    Js = Array{Float64,1}()
+    Js = []
     function evalcb() 
         J = sum(loss(dataset_train[i]...) for i=1:length(dataset_train))
-        push!(Js, J)
-        @info "J(θ) = $J"
+        L = sum(loss(dataset_test[i]...) for i=1:length(dataset_test))
+        @info "J(θ) = $J, L(θ) = $L"
+        push!(Js, (J, L))
         # pairs_test = [evaluate(model, dataset_test[i]...) for i=1:length(dataset_test)]
         # u, v = reduce(((a1, b1), (a2, b2)) -> (a1 + a2, b1 + b2), pairs_test)
         # push!(accuracy_test, v/u)
