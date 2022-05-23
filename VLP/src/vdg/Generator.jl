@@ -19,13 +19,13 @@ include("Utils.jl")
 include("BiRNN.jl")
 
 options = Dict{Symbol,Any}(
-    :sampleSize => 4_000,
+    :sampleSize => 2_000,
     :dataPath => string(pwd(), "/dat/vdg/010K.txt"),
     :alphabetPath => string(pwd(), "/dat/vdg/alphabet.txt"),
     :modelPath => string(pwd(), "/dat/vdg/vdg.bson"),
     :maxSequenceLength => 64,
     :batchSize => 32,
-    :numEpochs => 50,
+    :numEpochs => 100,
     :padX => 'P',
     :padY => 'Q',
     :consonant => 'S',
@@ -39,7 +39,6 @@ options = Dict{Symbol,Any}(
 labelSet = union(keys(charMap), values(charMap), [options[:padY], options[:consonant]])
 labelVec = unique(labelSet)
 padIdxY  = findall(c -> c == options[:padY], labelVec)
-labelMap = Dict{Char,Int}(c => i for (i, c) in enumerate(labelVec))
 
 function transform(text::String)::String
     map(c -> c ∈ labelSet ? c : options[:consonant], text)
@@ -49,10 +48,10 @@ end
   vectorize(text, alphabet)
 
   Transforms a sentence into an array of vectors based on an alphabet for training. 
-  In training mode, this function 
+  In training mode, the text is normal with diacritics and serves as output sequence. This function 
   returns a pair of matrix `(x, y)` where `x` is a matrix of size `|alphabet| x maxSequenceLength` 
   and `y` is also a matrix of size `|alphabet| x maxSequenceLength`. 
-  In test mode, this function returns only `x` matrix.
+  In test mode, this function returns only `x` matrix. Note that `x` is always a non-accented sequence.
 """
 function vectorize(text::String, alphabet::Array{Char}, training::Bool=true)
     # truncate or pad input sequences to have the same maxSequenceLength
@@ -147,7 +146,7 @@ function train(options)
 
     # define a model
     model = Chain(
-        GRU(length(alphabet), options[:hiddenSize]),
+        BiGRU(length(alphabet), options[:hiddenSize]),
         Dense(options[:hiddenSize], length(labelVec))
     )
     @info model
@@ -199,9 +198,9 @@ function train(options)
 end
 
 function predict(text::String, model, alphabet::Array{Char}, alphabetMap::Dict{Int,Char})::String
-    Xs = vectorize(text, alphabet, false)
+    Xs = vectorize(lowercase(text), alphabet, false)
     zs = map(X -> Flux.onecold(model(X)), Xs)
-    cs = map(z -> join(map(i -> labelMap[i], z)), zs)
+    cs = map(z -> join(map(i -> labelVec[i], z)), zs)
     texte = collect(join(cs))[1:length(text)]
     is = findall(c -> c == options[:consonant], texte)
     texte[is] .= collect(text)[is]
@@ -215,14 +214,14 @@ function test(text, model)
 end
 
 function test(text, model, alphabet, alphabetMap)
-    Xs, Ys = vectorize(text, alphabet)
+    Xs, Ys = vectorize(lowercase(text), alphabet)
     xs = Flux.onecold(Xs[1])
     @info alphabet[xs]
     ys = Flux.onecold(Ys[1])
-    vs = join(map(y -> alphabetMap[y], ys))
+    vs = join(map(y -> labelVec[y], ys))
     @info vs
     zs = Flux.onecold(model(Xs[1]))
-    ws = join(map(y -> alphabetMap[y], zs))
+    ws = join(map(y -> labelVec[y], zs))
     @info ws
 end
 
