@@ -111,13 +111,12 @@ function train(options)
     @info "N = $(N)"
     ys = map(y -> lowercase(y), lines[1:N])
     xs = map(y -> removeDiacritics(y), ys)
-    # create and save alphabet index
+    # create and save an alphabet of the training data
     alphabet = unique(join(xs))
     sort!(alphabet)
     prepend!(alphabet, options[:padX])
     @info "alphabet = $(join(alphabet))"
-    alphabetIndex = Dict{Char,Int}(c => i for (i, c) in enumerate(alphabet))
-    saveIndex(alphabetIndex, options[:alphabetPath])
+    saveAlphabet(alphabet, options[:alphabetPath])
 
     # create training sequences
     XYs = map(y -> vectorize(y, alphabet), ys)
@@ -147,7 +146,7 @@ function train(options)
     # define a model
     model = Chain(
         BiGRU(length(alphabet), options[:hiddenSize]),
-        Dense(options[:hiddenSize], length(labelVec))
+        Dense(options[:hiddenSize], length(labelVec), tanh)
     )
     @info model
     # compute the loss of the model on a batch
@@ -197,7 +196,7 @@ function train(options)
     return model, Js
 end
 
-function predict(text::String, model, alphabet::Array{Char}, alphabetMap::Dict{Int,Char})::String
+function predict(text::String, model, alphabet::Array{Char})::String
     Xs = vectorize(lowercase(text), alphabet, false)
     zs = map(X -> Flux.onecold(model(X)), Xs)
     cs = map(z -> join(map(i -> labelVec[i], z)), zs)
@@ -209,11 +208,10 @@ end
 
 function test(text, model)
     alphabet = loadAlphabet(options[:alphabetPath])
-    alphabetMap = Dict{Int,Char}(i => c for (i,c) in enumerate(alphabet))
-    test(text, model, alphabet, alphabetMap)
+    test(text, model, alphabet)
 end
 
-function test(text, model, alphabet, alphabetMap)
+function test(text, model, alphabet)
     Xs, Ys = vectorize(lowercase(text), alphabet)
     xs = Flux.onecold(Xs[1])
     @info alphabet[xs]

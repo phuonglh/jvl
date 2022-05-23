@@ -30,11 +30,18 @@ function saveIndex(index, path)
 end
 
 """
+    saveAlphabet(alphabet, path)
+"""
+function saveAlphabet(alphabet, path)
+    file = open(path, "w")
+    write(file, string(join(alphabet), "\n"))
+    close(file)
+end
+
+"""
     loadAlphabet(path)
 """
 function loadAlphabet(path)::Array{Char}
-    charIndex = loadIndex(path)
-    pairs = map(c -> (charIndex[c], c), collect(keys(charIndex)))
-    sort!(pairs, by = pair -> pair[1])
-    return map(p -> p[2], pairs)
+    line = readlines(path)[1]
+    collect(line)
 end
