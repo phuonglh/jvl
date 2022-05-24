@@ -1,4 +1,5 @@
-# An implementation of Vietnamese diacritics generation in Julia
+# A simple implementation of Vietnamese diacritics generation in Julia
+# using recurrent neural networks (GRU, LSTM)
 # (C) phuonglh@gmail.com
 
 #module VDG
@@ -19,18 +20,18 @@ include("Utils.jl")
 include("BiRNN.jl")
 
 options = Dict{Symbol,Any}(
-    :sampleSize => 3_000,
+    :sampleSize => 4_000,
     :dataPath => string(pwd(), "/dat/vdg/010K.txt"),
     :alphabetPath => string(pwd(), "/dat/vdg/alphabet.txt"),
     :modelPath => string(pwd(), "/dat/vdg/vdg.bson"),
-    :maxSequenceLength => 64,
-    :batchSize => 32,
+    :maxSequenceLength => 32,
+    :batchSize => 64,
     :numEpochs => 80,
     :padX => 'P',
     :padY => 'Q',
     :consonant => 'S',
     :gpu => false,
-    :hiddenSize => 32,
+    :hiddenSize => 300,
     :split => [0.8, 0.2],
     :η => 1E-4 # learning rate for Adam optimizer
 )
@@ -38,8 +39,10 @@ options = Dict{Symbol,Any}(
 # define the label set
 labelSet = union(keys(charMap), values(charMap), [options[:padY], options[:consonant]])
 labelVec = unique(labelSet)
+sort!(labelVec)
 padIdxY  = findall(c -> c == options[:padY], labelVec)
 
+# prepare target (output) sequence
 function transform(text::String)::String
     map(c -> c ∈ labelSet ? c : options[:consonant], text)
 end
@@ -117,6 +120,7 @@ function train(options)
     prepend!(alphabet, options[:padX])
     @info "alphabet = $(join(alphabet))"
     saveAlphabet(alphabet, options[:alphabetPath])
+    @info "labelVec = $labelVec"
 
     # create training sequences
     XYs = map(y -> vectorize(y, alphabet), ys)
@@ -145,7 +149,7 @@ function train(options)
 
     # define a model
     model = Chain(
-        BiGRU(length(alphabet), options[:hiddenSize]),
+        BiLSTM(length(alphabet), options[:hiddenSize]),
         # BiGRU(options[:hiddenSize], options[:hiddenSize]),
         Dense(options[:hiddenSize], length(labelVec))
     )
@@ -159,7 +163,7 @@ function train(options)
             Z = model(X)
             return Flux.logitcrossentropy(Z[:,1:t], Y[:,1:t])
         end
-        Flux.reset!(model)
+        # Flux.reset!(model)
         return sum(g(Xb[i], Yb[i]) for i=1:length(Xb))
     end
     optimizer = ADAM(options[:η])
@@ -210,6 +214,7 @@ function train(options)
 end
 
 function predict(text::String, model, alphabet::Array{Char})::String
+    Flux.reset!(model) # important since the batch size is changed
     Xs = vectorize(lowercase(text), alphabet, false)
     zs = map(X -> Flux.onecold(model(X)), Xs)
     cs = map(z -> join(map(i -> labelVec[i], z)), zs)
@@ -227,13 +232,16 @@ end
 
 function test(text, model, alphabet)
     Xs, Ys = vectorize(lowercase(text), alphabet)
+    # input
     xs = Flux.onecold(Xs[1])
     @info alphabet[xs]
+    # target
     ys = Flux.onecold(Ys[1])
     vs = join(map(y -> labelVec[y], ys))
     @info vs
+    # prediction
     zs = Flux.onecold(model(Xs[1]))
-    ws = join(map(y -> labelVec[y], zs))
+    ws = join(map(z -> labelVec[z], zs))
     @info ws
 end
 
