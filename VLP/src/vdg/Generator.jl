@@ -19,20 +19,20 @@ include("Utils.jl")
 include("BiRNN.jl")
 
 options = Dict{Symbol,Any}(
-    :sampleSize => 2_000,
+    :sampleSize => 3_000,
     :dataPath => string(pwd(), "/dat/vdg/010K.txt"),
     :alphabetPath => string(pwd(), "/dat/vdg/alphabet.txt"),
     :modelPath => string(pwd(), "/dat/vdg/vdg.bson"),
     :maxSequenceLength => 64,
     :batchSize => 32,
-    :numEpochs => 100,
+    :numEpochs => 80,
     :padX => 'P',
     :padY => 'Q',
     :consonant => 'S',
     :gpu => false,
-    :hiddenSize => 128,
+    :hiddenSize => 32,
     :split => [0.8, 0.2],
-    :η => 1E-3 # learning rate for Adam optimizer
+    :η => 1E-4 # learning rate for Adam optimizer
 )
 
 # define the label set
@@ -146,7 +146,8 @@ function train(options)
     # define a model
     model = Chain(
         BiGRU(length(alphabet), options[:hiddenSize]),
-        Dense(options[:hiddenSize], length(labelVec), tanh)
+        # BiGRU(options[:hiddenSize], options[:hiddenSize]),
+        Dense(options[:hiddenSize], length(labelVec))
     )
     @info model
     # compute the loss of the model on a batch
@@ -165,11 +166,18 @@ function train(options)
     
     accuracy_test, accuracy_train = Array{Float64,1}(), Array{Float64,1}()
     Js = []
+    bestLoss = Inf
+    stop = false
     function evalcb() 
         J = sum(loss(dataset_train[i]...) for i=1:length(dataset_train))
         L = sum(loss(dataset_test[i]...) for i=1:length(dataset_test))
         @info "J(θ) = $J, L(θ) = $L"
         push!(Js, (J, L))
+        if (L < bestLoss) 
+            bestLoss = L; 
+        else
+            stop = true
+        end 
         # pairs_test = [evaluate(model, dataset_test[i]...) for i=1:length(dataset_test)]
         # u, v = reduce(((a1, b1), (a2, b2)) -> (a1 + a2, b1 + b2), pairs_test)
         # push!(accuracy_test, v/u)
@@ -178,8 +186,12 @@ function train(options)
         # push!(accuracy_train, v/u)
         # @info "loss = $J, test accuracy = $(accuracy_test[end]), training accuracy = $(accuracy_train[end])"
     end
-    for _=1:options[:numEpochs]
+    for t=1:options[:numEpochs]
         @time Flux.train!(loss, Flux.params(model), dataset_train, optimizer, cb = Flux.throttle(evalcb, 60))
+        if (stop) 
+            @info "Stop training at iteration $t."
+            break; 
+        end
     end
     if (options[:gpu])
         model = model |> cpu
@@ -202,6 +214,7 @@ function predict(text::String, model, alphabet::Array{Char})::String
     zs = map(X -> Flux.onecold(model(X)), Xs)
     cs = map(z -> join(map(i -> labelVec[i], z)), zs)
     texte = collect(join(cs))[1:length(text)]
+    @info texte
     is = findall(c -> c == options[:consonant], texte)
     texte[is] .= collect(text)[is]
     return join(texte)
