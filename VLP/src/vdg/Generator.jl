@@ -18,6 +18,7 @@ using Random
 include("DiacriticsRemoval.jl")
 include("Utils.jl")
 include("BiRNN.jl")
+include("Embedding.jl")
 
 options = Dict{Symbol,Any}(
     :sampleSize => 4_000,
@@ -31,6 +32,7 @@ options = Dict{Symbol,Any}(
     :padY => 'Q',
     :consonant => 'S',
     :gpu => false,
+    :embeddingSize => 100,
     :hiddenSize => 300,
     :split => [0.8, 0.2],
     :η => 1E-4 # learning rate for Adam optimizer
@@ -50,11 +52,11 @@ end
 """
   vectorize(text, alphabet)
 
-  Transforms a sentence into an array of vectors based on an alphabet for training. 
+  Transforms a sentence into an array of integer indices based on an alphabet for training. 
   In training mode, the text is normal with diacritics and serves as output sequence. This function 
-  returns a pair of matrix `(x, y)` where `x` is a matrix of size `|alphabet| x maxSequenceLength` 
-  and `y` is also a matrix of size `|alphabet| x maxSequenceLength`. 
-  In test mode, this function returns only `x` matrix. Note that `x` is always a non-accented sequence.
+  returns a pair of matrix `(x, y)` where `x` is a sequence of length `maxSequenceLength` 
+  and `y` is a matrix of size `|alphabet| x maxSequenceLength`. 
+  In prediction mode, this function returns only `x`. 
 """
 function vectorize(text::String, alphabet::Array{Char}, training::Bool=true)
     # truncate or pad input sequences to have the same maxSequenceLength
@@ -66,8 +68,9 @@ function vectorize(text::String, alphabet::Array{Char}, training::Bool=true)
     px = fill(options[:padX], n - length(xs[end]))
     xs[end] = vcat(xs[end], px)
     # now all the subarrays in xs are of the same length, 
-    # convert them into one-hot matrices of size (|alphabet| x maxSeqLen)
-    Xs = map(x -> Float32.(Flux.onehotbatch(x, alphabet)), xs)
+    # convert each of them into an integer sequence of length maxSeqLen
+    # Xs = map(x -> Float32.(Flux.onehotbatch(x, alphabet)), xs)
+    Xs = map(x -> Int.(indexin(x, alphabet)), xs)
     if (training) 
         # ys = collect(Iterators.partition(text, n))
         texte = transform(text)
@@ -149,7 +152,9 @@ function train(options)
 
     # define a model
     model = Chain(
-        BiLSTM(length(alphabet), options[:hiddenSize]),
+        Embedding(length(alphabet), options[:embeddingSize]),
+        BiLSTM(options[:embeddingSize], options[:hiddenSize]),
+        # BiLSTM(length(alphabet), options[:hiddenSize]),
         # BiGRU(options[:hiddenSize], options[:hiddenSize]),
         Dense(options[:hiddenSize], length(labelVec))
     )
