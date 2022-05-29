@@ -31,9 +31,13 @@ options = Dict{Symbol,Any}(
     :padX => 'P',
     :padY => 'Q',
     :consonant => 'S',
+    :punctuation => 'U',
+    :digit => 'D', 
+    :numeric => 'N', 
+    :mark => 'M',
     :gpu => false,
-    :embeddingSize => 100,
-    :hiddenSize => 300,
+    :embeddingSize => 50,
+    :hiddenSize => 100,
     :split => [0.8, 0.2],
     :η => 1E-4 # learning rate for Adam optimizer
 )
@@ -44,8 +48,20 @@ labelVec = unique(labelSet)
 sort!(labelVec)
 padIdxY  = findall(c -> c == options[:padY], labelVec)
 
+function g(c::Char)
+    if isnumeric(c) return options[:numeric]; end
+    if ispunct(c) return options[:punctuation]; end
+    if '\u0300' <= c && c <= '\u0323' return options[:mark]; end
+    return c
+end
+
+# prepare input sequence
+function transformInput(text::String)::String
+    join(map(c -> g(c), collect(text)))
+end
+
 # prepare target (output) sequence
-function transform(text::String)::String
+function transformOutput(text::String)::String
     map(c -> c ∈ labelSet ? c : options[:consonant], text)
 end
 
@@ -62,6 +78,7 @@ function vectorize(text::String, alphabet::Array{Char}, training::Bool=true)
     # truncate or pad input sequences to have the same maxSequenceLength
     n = options[:maxSequenceLength]
     x = removeDiacritics(text)
+    x = transformInput(x)
     # slice x into subarrays of equal length
     xs = collect(Iterators.partition(x, n))
     # pad the last subarray with the pad character
@@ -69,11 +86,10 @@ function vectorize(text::String, alphabet::Array{Char}, training::Bool=true)
     xs[end] = vcat(xs[end], px)
     # now all the subarrays in xs are of the same length, 
     # convert each of them into an integer sequence of length maxSeqLen
-    # Xs = map(x -> Float32.(Flux.onehotbatch(x, alphabet)), xs)
     Xs = map(x -> Int.(indexin(x, alphabet)), xs)
     if (training) 
         # ys = collect(Iterators.partition(text, n))
-        texte = transform(text)
+        texte = transformOutput(text)
         ys = collect(Iterators.partition(texte, n))
         py = fill(options[:padY], n - length(ys[end]))
         ys[end] = vcat(ys[end], py)
@@ -116,7 +132,8 @@ function train(options)
     N = min(options[:sampleSize], length(lines))
     @info "N = $(N)"
     ys = map(y -> lowercase(y), lines[1:N])
-    xs = map(y -> removeDiacritics(y), ys)
+    # xs = map(y -> removeDiacritics(y), ys)
+    xs = map(y -> transformInput(removeDiacritics(y)), ys)
     # create and save an alphabet of the training data
     alphabet = unique(join(xs))
     sort!(alphabet)
@@ -124,6 +141,8 @@ function train(options)
     @info "alphabet = $(join(alphabet))"
     saveAlphabet(alphabet, options[:alphabetPath])
     @info "labelVec = $labelVec"
+    @info "size(alphabet) = $(length(alphabet))"
+    @info "size(labelVec) = $(length(labelVec))"
 
     # create training sequences
     XYs = map(y -> vectorize(y, alphabet), ys)
