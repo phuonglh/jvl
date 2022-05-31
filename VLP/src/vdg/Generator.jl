@@ -27,7 +27,7 @@ options = Dict{Symbol,Any}(
     :modelPath => string(pwd(), "/dat/vdg/vdg.bson"),
     :maxSequenceLength => 32,
     :batchSize => 64,
-    :numEpochs => 80,
+    :numEpochs => 40,
     :padX => 'P',
     :padY => 'Q',
     :consonant => 'S',
@@ -36,17 +36,17 @@ options = Dict{Symbol,Any}(
     :numeric => 'N', 
     :mark => 'M',
     :gpu => false,
-    :embeddingSize => 50,
-    :hiddenSize => 100,
+    :embeddingSize => 100,
+    :hiddenSize => 200,
     :split => [0.8, 0.2],
-    :η => 1E-4 # learning rate for Adam optimizer
+    :η => 1E-3 # learning rate for Adam optimizer
 )
 
 # define the label set
 labelSet = union(keys(charMap), values(charMap), [options[:padY], options[:consonant]])
 labelVec = unique(labelSet)
 sort!(labelVec)
-padIdxY  = findall(c -> c == options[:padY], labelVec)
+padIdxY  = findall(c -> c == options[:padY], labelVec)[1] # note that findall return a vector!
 
 function g(c::Char)
     if isnumeric(c) return options[:numeric]; end
@@ -65,6 +65,24 @@ function transformOutput(text::String)::String
     map(c -> c ∈ labelSet ? c : options[:consonant], text)
 end
 
+function splitBySpace(s::String, maxSeqLen::Int)
+    # convert string to an array of characters for ease of indexing
+    x = collect(strip(s))
+    xs = Vector{String}()
+    while (!isempty(x)) 
+        t = min(length(x)+1, maxSeqLen)
+        if (t == maxSeqLen) 
+            # find the last space
+            while (t > 0 && x[t] != ' ') t -= 1; end
+        end
+        u = x[1:t-1]
+        push!(xs, strip(join(u)));
+        x = x[t:end]
+        @info x
+    end
+    return xs
+end
+
 """
   vectorize(text, alphabet)
 
@@ -79,8 +97,15 @@ function vectorize(text::String, alphabet::Array{Char}, training::Bool=true)
     n = options[:maxSequenceLength]
     x = removeDiacritics(text)
     x = transformInput(x)
-    # slice x into subarrays of equal length
+    # slice x into subarrays of equal length; note that we make sure 
+    # that the string is always split such that the last character is a space
     xs = collect(Iterators.partition(x, n))
+    # xs = splitBySpace(x, n)
+    # # pad the subarrays with the pad character
+    # for i=1:length(xs)
+    #     px = fill(options[:padX], n - length(xs[i]))
+    #     xs[i] = vcat(xs[i], px)
+    # end
     # pad the last subarray with the pad character
     px = fill(options[:padX], n - length(xs[end]))
     xs[end] = vcat(xs[end], px)
@@ -172,9 +197,7 @@ function train(options)
     # define a model
     model = Chain(
         Embedding(length(alphabet), options[:embeddingSize]),
-        BiLSTM(options[:embeddingSize], options[:hiddenSize]),
-        # BiLSTM(length(alphabet), options[:hiddenSize]),
-        # BiGRU(options[:hiddenSize], options[:hiddenSize]),
+        BiGRU(options[:embeddingSize], options[:hiddenSize]),
         Dense(options[:hiddenSize], length(labelVec))
     )
     @info model
@@ -183,29 +206,32 @@ function train(options)
         function g(X, Y)
             ys = Flux.onecold(Y)
             t = options[:maxSequenceLength]
-            while (ys[t] == padIdxY) t = t - 1; end
+            while (t > 0 && ys[t] == padIdxY) t = t - 1; end
             Z = model(X)
             return Flux.logitcrossentropy(Z[:,1:t], Y[:,1:t])
         end
-        # Flux.reset!(model)
+        # need to reset the state of the model between each batch
+        # since the batches are independent, not a continuation of samples
+        Flux.reset!(model) 
         return sum(g(Xb[i], Yb[i]) for i=1:length(Xb))
     end
-    optimizer = ADAM(options[:η])
+    optimizer = RMSProp(options[:η], 0.95)
     
     accuracy_test, accuracy_train = Array{Float64,1}(), Array{Float64,1}()
     Js = []
-    bestLoss = Inf
-    stop = false
+    # bestLoss = Inf
+    # stop = false
     function evalcb() 
         J = sum(loss(dataset_train[i]...) for i=1:length(dataset_train))
         L = sum(loss(dataset_test[i]...) for i=1:length(dataset_test))
         @info "J(θ) = $J, L(θ) = $L"
         push!(Js, (J, L))
-        if (L < bestLoss) 
-            bestLoss = L; 
-        else
-            stop = true
-        end 
+        # if (L < bestLoss) 
+        #     bestLoss = L; 
+        # else
+        #     stop = true
+        # end 
+
         # pairs_test = [evaluate(model, dataset_test[i]...) for i=1:length(dataset_test)]
         # u, v = reduce(((a1, b1), (a2, b2)) -> (a1 + a2, b1 + b2), pairs_test)
         # push!(accuracy_test, v/u)
@@ -216,10 +242,10 @@ function train(options)
     end
     for t=1:options[:numEpochs]
         @time Flux.train!(loss, Flux.params(model), dataset_train, optimizer, cb = Flux.throttle(evalcb, 60))
-        if (stop) 
-            @info "Stop training at iteration $t."
-            break; 
-        end
+        # if (stop) 
+        #     @info "Stop training at iteration $t."
+        #     break; 
+        # end
     end
     if (options[:gpu])
         model = model |> cpu
@@ -241,7 +267,7 @@ function predict(text::String, model, alphabet::Array{Char})::String
     Flux.reset!(model) # important since the batch size is changed
     Xs = vectorize(lowercase(text), alphabet, false)
     zs = map(X -> Flux.onecold(model(X)), Xs)
-    cs = map(z -> join(map(i -> labelVec[i], z)), zs)
+    cs = map(z -> join(labelVec[z]), zs)
     texte = collect(join(cs))[1:length(text)]
     @info texte
     is = findall(c -> c == options[:consonant], texte)
