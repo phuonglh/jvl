@@ -10,6 +10,7 @@ using BSON: @save, @load
 
 using FLoops
 using Random
+using Statistics
 
 # using CSV
 # using DataFrames
@@ -213,24 +214,24 @@ function train(options)
         # need to reset the state of the model between each batch
         # since the batches are independent, not a continuation of samples
         Flux.reset!(model) 
-        return sum(g(Xb[i], Yb[i]) for i=1:length(Xb))
+        return mean(g(Xb[i], Yb[i]) for i=1:length(Xb))
     end
-    optimizer = RMSProp(options[:η], 0.95)
+    optimizer = ADAM(options[:η])
     
     accuracy_test, accuracy_train = Array{Float64,1}(), Array{Float64,1}()
     Js = []
-    # bestLoss = Inf
-    # stop = false
+    bestLoss = Inf
+    stop = false
     function evalcb() 
-        J = sum(loss(dataset_train[i]...) for i=1:length(dataset_train))
-        L = sum(loss(dataset_test[i]...) for i=1:length(dataset_test))
+        J = mean(loss(dataset_train[i]...) for i=1:length(dataset_train))
+        L = mean(loss(dataset_test[i]...) for i=1:length(dataset_test))
         @info "J(θ) = $J, L(θ) = $L"
         push!(Js, (J, L))
-        # if (L < bestLoss) 
-        #     bestLoss = L; 
-        # else
-        #     stop = true
-        # end 
+        if (L < bestLoss) 
+            bestLoss = L; 
+        else
+            stop = true
+        end 
 
         # pairs_test = [evaluate(model, dataset_test[i]...) for i=1:length(dataset_test)]
         # u, v = reduce(((a1, b1), (a2, b2)) -> (a1 + a2, b1 + b2), pairs_test)
@@ -242,10 +243,10 @@ function train(options)
     end
     for t=1:options[:numEpochs]
         @time Flux.train!(loss, Flux.params(model), dataset_train, optimizer, cb = Flux.throttle(evalcb, 60))
-        # if (stop) 
-        #     @info "Stop training at iteration $t."
-        #     break; 
-        # end
+        if (stop) 
+            @info "Stop training at iteration $t."
+            break; 
+        end
     end
     if (options[:gpu])
         model = model |> cpu
@@ -259,7 +260,6 @@ function train(options)
     u, v = reduce(((a1, b1), (a2, b2)) -> (a1 + a2, b1 + b2), pairs_train)
     push!(accuracy_train, v/u)
     @info "test accuracy = $(accuracy_test[end]), training accuracy = $(accuracy_train[end])"
-    # plot(1:length(Js), xlabel="iteration", ylabel="loss", label=["J"])
     return model, Js
 end
 
