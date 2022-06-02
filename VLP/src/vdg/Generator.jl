@@ -37,8 +37,8 @@ options = Dict{Symbol,Any}(
     :numeric => 'N', 
     :mark => 'M',
     :gpu => false,
-    :embeddingSize => 100,
-    :hiddenSize => 200,
+    :embeddingSize => 8,
+    :hiddenSize => 128,
     :split => [0.8, 0.2],
     :η => 1E-3 # learning rate for Adam optimizer
 )
@@ -199,6 +199,7 @@ function train(options)
     model = Chain(
         Embedding(length(alphabet), options[:embeddingSize]),
         BiGRU(options[:embeddingSize], options[:hiddenSize]),
+        BiGRU(options[:hiddenSize], options[:hiddenSize]),
         Dense(options[:hiddenSize], length(labelVec))
     )
     @info model
