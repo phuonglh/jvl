@@ -31,13 +31,13 @@ options = Dict{Symbol,Any}(
     :vocabSize => 2^16,
     :wordSize => 32,
     :hiddenSize => 128,
-    :maxSequenceLength => 10,
+    :maxSequenceLength => 20,
     :batchSize => 64,
     :numEpochs => 50,
-    :corpusPath => string(pwd(), "/dat/nlu/sample.txt"),
-    :modelPath => string(pwd(), "/dat/nlu/gru.bson"),
-    :wordPath => string(pwd(), "/dat/nlu/word.txt"),
-    :labelPath => string(pwd(), "/dat/nlu/label.txt"),
+    :corpusPath => string(pwd(), "/dat/nlu/but/bank-intent.csv"),
+    :modelPath => string(pwd(), "/dat/nlu/but/gru.bson"),
+    :wordPath => string(pwd(), "/dat/nlu/but/word.txt"),
+    :labelPath => string(pwd(), "/dat/nlu/but/label.txt"),
     :numCores => 4,
     :verbose => false,
     :unknown => "[UNK]",
@@ -125,7 +125,8 @@ function batch(df::DataFrame, wordIndex::Dict{String,Int}, labelIndex::Dict{Stri
 end
 
 function train(options)
-    df = readIntents(options[:corpusPath])
+    # df = Corpus.readIntents(options[:corpusPath])
+    df = Corpus.readIntentsBUT(options[:corpusPath]) # BUT experiments
     # random split df for training/test data
     Random.seed!(220712)
     n = nrow(df)

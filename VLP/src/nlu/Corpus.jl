@@ -8,6 +8,28 @@ using DataFrames
 using JSON3
 using CSV
 
+"""
+    readIntentsBUT(path)
+
+    Read a BUT corpus to build intent-tagged samples.
+"""
+function readIntentsBUT(path::String)::DataFrame
+    df = DataFrame(CSV.File(path, delim=';'))
+    df = df[:, 1:2]
+    # remove empty line
+    dropmissing!(df)
+    # remove entity rows, keep full-text and intent lines
+    ef = filter(row -> strip(row.two) != "O", df)
+    # there are 7,790 samples, turn the data frame into a vector of NamedTuples
+    xs = copy.(eachrow(ef))
+    # group pairs of rows 
+    ps = collect(Iterators.partition(xs, 2))
+    # map to (intent, sample) elements
+    intents = map(p -> lowercase(p[2][2]), ps)
+    texts = map(p -> lowercase(p[1][2]), ps)
+    return DataFrame(:intent => intents, :text => texts)
+end
+
 
 """
     readIntents(path)
