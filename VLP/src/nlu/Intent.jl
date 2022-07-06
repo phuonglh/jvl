@@ -29,7 +29,7 @@ using .Corpus
 options = Dict{Symbol,Any}(
     :minFreq => 1,
     :vocabSize => 2^16,
-    :wordSize => 32,
+    :wordSize => 16,
     :hiddenSize => 128,
     :maxSequenceLength => 20,
     :batchSize => 64,
@@ -46,6 +46,14 @@ options = Dict{Symbol,Any}(
     :split => [0.8, 0.2],
     :gpu => false
 )
+
+## selected intents for experiments
+# selectedIntents = Set{String}()
+selectedIntents = Set{String}(["card_error", "cards_apply", "cards_expirydate", "cards_limit", "cards_document", "cards_requirements", 
+    "cards_lock", "cards_unlock", "cards_feature", "cards_intro", "cards_fee", "cards_activate"])
+
+mergedIntents = Map{String,String}("cards_apply" => "cards_procedure", "cards_lock" => "cards_procedure", "cards_unlock" => "cards_procedure", 
+    "cards_activate" => "cards_procedure", "card_error" => "cards_procedure")
 
 """
     tokenize(utterance)
@@ -127,6 +135,11 @@ end
 function train(options)
     # df = Corpus.readIntents(options[:corpusPath])
     df = Corpus.readIntentsBUT(options[:corpusPath]) # BUT experiments
+    # filter for selected intents 
+    if !isempty(selectedIntents)
+        df = filter(row -> row["intent"] ∈ selectedIntents, df)
+    end
+
     # random split df for training/test data
     Random.seed!(220712)
     n = nrow(df)
