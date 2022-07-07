@@ -29,7 +29,7 @@ using .Corpus
 options = Dict{Symbol,Any}(
     :minFreq => 1,
     :vocabSize => 2^16,
-    :wordSize => 16,
+    :wordSize => 32,
     :hiddenSize => 128,
     :maxSequenceLength => 20,
     :batchSize => 64,
@@ -52,8 +52,8 @@ options = Dict{Symbol,Any}(
 selectedIntents = Set{String}(["card_error", "cards_apply", "cards_expirydate", "cards_limit", "cards_document", "cards_requirements", 
     "cards_lock", "cards_unlock", "cards_feature", "cards_intro", "cards_fee", "cards_activate"])
 
-mergedIntents = Map{String,String}("cards_apply" => "cards_procedure", "cards_lock" => "cards_procedure", "cards_unlock" => "cards_procedure", 
-    "cards_activate" => "cards_procedure", "card_error" => "cards_procedure")
+mergedIntents = Dict{String,String}("cards_apply" => "cards_procedure", "cards_lock" => "cards_procedure", "cards_unlock" => "cards_procedure", 
+    "cards_activate" => "cards_procedure")
 
 """
     tokenize(utterance)
@@ -139,6 +139,8 @@ function train(options)
     if !isempty(selectedIntents)
         df = filter(row -> row["intent"] ∈ selectedIntents, df)
     end
+    # transform intent using the map `mergedIntents`
+    df.intent = replace(t -> get(Intent.mergedIntents, t, t), df.intent)
 
     # random split df for training/test data
     Random.seed!(220712)
@@ -204,7 +206,7 @@ function train(options)
         @info "Epoch $t, k = $k"
         Flux.train!(loss, params(encoder), trainingData, optimizer, cb = Flux.throttle(evalcb, 60))
         devAccuracy = evaluate(encoder, Xv, Yv, options)
-        if bestDevAccuracy < devAccuracy
+        if bestDevAccuracy <= devAccuracy
             bestDevAccuracy = devAccuracy
             k = 0
         else
