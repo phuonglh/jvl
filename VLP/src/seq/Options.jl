@@ -245,3 +245,34 @@ optionsKIK2020 = Dict{Symbol,Any}(
     :testOutput => string(pwd(), "/dat/ner/ind-test.out"),
     :threeColumns => true
 )
+
+# For BUT entity (2022)
+optionsBUT = Dict{Symbol,Any}(
+    :minFreq => 2,
+    :lowercase => true,
+    :vocabSize => 2^16,
+    :wordSize => 100,
+    :shapeSize => 4,
+    :posSize => 2,
+    :hiddenSize => 64,
+    :maxSequenceLength => 40,
+    :batchSize => 32,
+    :numEpochs => 100,
+    :trainCorpus => string(pwd(), "/dat/ner/vie/but/bank-entity.csv"),
+    :validCorpus => string(pwd(), "/dat/ner/vie/but/bank-entity.csv"),
+    :testCorpus => string(pwd(), "/dat/ner/vie/but/bank-entity.csv"),
+    :modelPath => string(pwd(), "/dat/ner/vie/but/but-network.bson"),
+    :wordPath => string(pwd(), "/dat/ner/vie/but/word.txt"),
+    :shapePath => string(pwd(), "/dat/ner/vie/but/shape.txt"),
+    :posPath => string(pwd(), "/dat/ner/vie/but/partOfSpeech.txt"),
+    :labelPath => string(pwd(), "/dat/ner/vie/but/label.txt"),
+    :numCores => 4,
+    :verbose => false,
+    :logPath => string(pwd(), "/dat/ner/vie/but/loss.txt"),
+    :unknown => "[UNK]",
+    :paddingX => "[PAD_X]",
+    :paddingY => "[PAD_Y]",
+    :trainOutput => string(pwd(), "/dat/ner/vie/but/train.out"),
+    :validOutput => string(pwd(), "/dat/ner/vie/but/dev.out"),
+    :testOutput => string(pwd(), "/dat/ner/vie/but/test.out")
+)

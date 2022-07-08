@@ -1,6 +1,6 @@
 module Corpus
 
-export Token, Sentence, readCorpusUD, readCorpusCoNLL, readCorpusVLSP
+export Token, Sentence, readCorpusUD, readCorpusCoNLL, readCorpusVLSP, readCorpusBUT
 
 include("../tok/VietnameseTokenizer.jl")
 using .VietnameseTokenizer
@@ -14,6 +14,38 @@ end
 struct Sentence
     tokens::Array{Token}
 end
+
+
+"""
+    readCorpusBUT(path, maxSentenceLength=40)
+
+    Read a BUT file to build named-entity tagged sentences. 
+"""
+function readCorpusBUT(path::String, maxSentenceLength::Int=40)::Array{Sentence}
+    function createToken(line::String)::Token
+        parts = string.(split(line, r"[,]+"))
+        annotation = Dict(:p => "NA", :c => "NA", :e => parts[2], :s => VietnameseTokenizer.shape(parts[1]))
+        Token(parts[1], annotation)
+    end
+
+    sentences = Array{Sentence,1}()
+    lines = readlines(path)
+    n = length(lines)
+    indexedLines = collect(zip(1:n, map(line -> strip(line), lines)))
+    emptyIndices = map(p -> p[1], filter(p -> isempty(p[2]), indexedLines))
+    j = 1
+    for i in emptyIndices
+        xs = lines[j+1:i-1] # j+1 instead of j because we want to skip the first token (which is the intent)
+        if (isempty(xs))
+            @warn ("Problematic line: $i")
+        end
+        tokens = createToken.(xs)
+        push!(sentences, Sentence(tokens))
+        j = i+1
+    end
+    sentences
+end
+
 
 """
     readCorpusUD(path, maxSentenceLength=40)
@@ -52,7 +84,7 @@ end
     Read a CoNLL-2003 file to build named-entity tagged sentences. The Bahasa Indonesia 
     corpus has 3 columns: word, part-of-speech, and NE tag; if reading this corpus, we 
     need to set the last argument to true to use the default chunk information "_" for all 
-    tokens.
+    tokens. Tokens are separated by space or semi-column character.
 """
 function readCorpusCoNLL(path::String, threeColumns::Bool=false, maxSentenceLength::Int=40)::Array{Sentence}
     function createToken(line::String)::Token

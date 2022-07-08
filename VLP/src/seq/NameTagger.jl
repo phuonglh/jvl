@@ -96,8 +96,10 @@ end
     Train an encoder.
 """
 function train(options::Dict{Symbol,Any})
-    sentences = readCorpusCoNLL(options[:trainCorpus], options[:threeColumns])
-    sentencesValidation = readCorpusCoNLL(options[:validCorpus], options[:threeColumns])
+    # sentences = readCorpusCoNLL(options[:trainCorpus], options[:threeColumns])
+    # sentencesValidation = readCorpusCoNLL(options[:validCorpus], options[:threeColumns])
+    sentences = readCorpusBUT(options[:trainCorpus])
+    sentencesValidation = sentences
     @info "Number of training sentences = $(length(sentences))"
     @info "Number of validation sentences = $(length(sentencesValidation))"
     vocabularies = vocab(sentences, options[:minFreq])
