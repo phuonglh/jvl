@@ -328,7 +328,7 @@ Train and evaluate the extended parser:
 # Intent Detection
 
 This module provides two neural network based intent detectors. 
-- The first one is in `src/nlu/Intent.jl` which implements a GRU model. The model contains 3 layers: `Embedding -> GRU3 -> Dense`. The custom layer `GRU3` takes a 3-d matrix as input. This model has a training accuracy of about 0.9811 and a test accuracy of about 0.7610 on  a random train/split test of ratios 80/20.
+- The first one is in `src/nlu/Intent.jl` which implements a GRU model. The model contains 3 layers: `Embedding -> GRU3 -> Dense`. The custom layer `GRU3` takes a 3-d matrix as input. This model has a training accuracy of about 0.9811 and a test accuracy of about 0.7610 on  a random train/split test of ratios 80/20 of an English dataset.
 - The second one is in `src/nlu/IntentBERT.jl` which implements a BERT-based model (English version). The model use BERT to compute a vector for each sentence (by summing over its token vectors, see `BERTify.jl`) before passing to two dense layers. This model has a training accuracy of about 0.8958 and a test accuracy of about 0.7900. The BERT model is about 3% more accurate than the GRU model.
 
 # Vietnamese Spelling Check 
@@ -346,5 +346,4 @@ sequence `[y_1, y_2,...,y_N]` where a label `y_k` in the set `[:s, :d, :r, :i, :
 To train a `Kar` model with some options, simply run `Kar.train(Kar.options)`. 
 
 To generate training data, use the function `Mutate.generate(path)`. The input `path` is a text file, 
-each line contains a sentence. The output will be `path.inp` which is a text file of two times more 
-lines than the input file. This file is used as input to the `Kar` program. 
+each line contains a sentence. The output will be `path.inp` which is a text file of having twice more lines than the input file. This file is used as input to the `Kar` program. 
