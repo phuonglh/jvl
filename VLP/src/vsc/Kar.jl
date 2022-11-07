@@ -68,7 +68,7 @@ function vectorize(tokens::Vector{String}, alphabet::Vector{Char}, mutations::Ve
     vs = onehotbatch(vcs, alphabet)
     # middle bag-of-character vectors
     cs = zeros(length(alphabet), length(x))
-    for j = 1:length(x)
+    for j in eachindex(x)
         cs[:,j] = boc(x[j], alphabet)
     end
     # combine all vectors into xs and convert xs to Float32 to speed up computation
@@ -176,7 +176,7 @@ function evaluate(model, xs::Vector{Matrix{Float32}}, ys::Vector{Matrix{Float32}
     total = 0
     correct = 0
     padding = length(options[:labels])
-    for i = 1:length(as)
+    for i in eachindex(as)
         t = options[:maxSequenceLength]
         while t > 0 && bs[i][t] == padding
             t = t - 1
@@ -224,7 +224,7 @@ function train(options)
     @info model
     # compute the loss of the model on a batch
     function loss(Xs, Ys)
-        value = sum(logitcrossentropy(model(Xs[i]), Ys[i]) for i=1:length(Xs))
+        value = sum(logitcrossentropy(model(Xs[i]), Ys[i]) for i in eachindex(Xs))
         reset!(model)
         return value
     end
@@ -239,11 +239,11 @@ function train(options)
     end
     @save options[:modelPath] model
     # evaluate the training accuracy of the model
-    pairs = [evaluate(model, collect(Xb[i]), collect(Yb[i])) for i=1:length(Xb)]
+    pairs = [evaluate(model, collect(Xb[i]), collect(Yb[i])) for i in eachindex(Xb)]
     result = reduce(((a, b), (c, d)) -> (a + c, b + d), pairs)
     @info "training accuracy = $(result[2]/result[1]) [$(result[2])/$(result[1])]."
     # evaluate the dev. accuracy of the model
-    pairs_dev = [evaluate(model, collect(Xd[i]), collect(Yd[i])) for i=1:length(Xd)]
+    pairs_dev = [evaluate(model, collect(Xd[i]), collect(Yd[i])) for i in eachindex(Xd)]
     result = reduce(((a, b), (c, d)) -> (a + c, b + d), pairs_dev)
     @info "development accuracy = $(result[2]/result[1]) [$(result[2])/$(result[1])]."    
     return model
@@ -260,7 +260,7 @@ function eval(options)
     alphabet = collect(readline(options[:alphabetPath]))
     Xb, Yb = batch(sentences, alphabet, mutations)
     # evaluate the training accuracy of the model
-    pairs = [evaluate(model, collect(Xb[i]), collect(Yb[i])) for i=1:length(Xb)]
+    pairs = [evaluate(model, collect(Xb[i]), collect(Yb[i])) for i in eachindex(Xb)]
     result = reduce(((a, b), (c, d)) -> (a + c, b + d), pairs)
     reset!(model)
     @info "training accuracy = $(result[2]/result[1]) [$(result[2])/$(result[1])]."
