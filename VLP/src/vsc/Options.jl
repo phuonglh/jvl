@@ -4,7 +4,7 @@
 options = Dict{Symbol,Any}(
     :hiddenSize => 32,
     :maxSequenceLength => 80,
-    :numEpochs => 40,
+    :numEpochs => 200,
     :batchSize => 32, 
     :labels => [:n, :s, :r, :i, :d, :P], # :p is the padding symbol
     :inputPath => string(pwd(), "/dat/vsc/100.txt.inp"),

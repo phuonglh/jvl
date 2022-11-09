@@ -6,6 +6,7 @@ module Kar
 using Flux
 using Flux: @epochs, onehotbatch, throttle, logitcrossentropy, reset!, onecold
 using BSON: @save, @load
+using CUDA
 
 include("Options.jl")
 
@@ -206,11 +207,6 @@ function train(options)
     Xb, Yb = X[1:n], Y[1:n]
     # create development data
     Xd, Yd = X[n+1:end], Y[n+1:end]
-    if options[:gpu] 
-        @info "Bringing data to GPU..."
-        Xb = map(t -> gpu.(t), Xb)
-        Yb = map(t -> gpu.(t), Yb)
-    end
     dataset = collect(zip(Xb, Yb))
     @info "#(training batches) = $(length(Xb)), #(dev. batches) = $(length(Xd))"
     @info "typeof(X1) = $(typeof(Xb[1])), shape(X1) = $(size(Xb[1][1]))" 
@@ -222,6 +218,16 @@ function train(options)
         Dense(options[:hiddenSize]÷2, length(options[:labels]))
     )
     @info model
+    if options[:gpu] 
+        @info "Bringing data and model to GPU..."
+        Xb = map(t -> gpu.(t), Xb)
+        Yb = map(t -> gpu.(t), Yb)
+        model = fmap(cu, model)
+        @info "typeof(X1) = $(typeof(Xb[1])), shape(X1) = $(size(Xb[1][1]))" 
+        @info "typeof(Y1) = $(typeof(Yb[1])), shape(Y1) = $(size(Yb[1][1]))" 
+        @info model
+        @info typeof(model[3].W)
+        end
     # compute the loss of the model on a batch
     function loss(Xs, Ys)
         value = sum(logitcrossentropy(model(Xs[i]), Ys[i]) for i in eachindex(Xs))
@@ -234,6 +240,7 @@ function train(options)
         @info "loss = $(loss(dataset[1]...))"
     end
     @epochs options[:numEpochs] Flux.train!(loss, Flux.params(model), dataset, optimizer, cb = throttle(evalcb, 60))
+    # bring the model back to CPU before saving it
     if (options[:gpu])
         model = model |> cpu
     end
